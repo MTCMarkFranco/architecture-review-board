@@ -67,40 +67,40 @@ deployment_details_headers = [
     "Business Unit(s)"
 ]
 
-def parse_asd(pdf_path='', pdf_file=None, local=False):
+def parse_arb(pdf_path='', pdf_file=None, local=False):
     if local:
-        asd = fitz.open(pdf_path)
+        arb = fitz.open(pdf_path)
     else:
         file_stream = pdf_file.read()
-        asd = fitz.open(stream=file_stream, filetype='pdf')
+        arb = fitz.open(stream=file_stream, filetype='pdf')
 
     section_content = {}
 
-    summary = extract_section(asd, "Summary", "Solution Requirements", summary_headers)
+    summary = extract_section(arb, "Summary", "Solution Requirements", summary_headers)
     section_content.update(summary)
 
-    requirements = extract_section(asd, "Solution Requirements", "Affinity/Anti-Affinity Requirements", requirement_headers)
+    requirements = extract_section(arb, "Solution Requirements", "Affinity/Anti-Affinity Requirements", requirement_headers)
     section_content.update(requirements)
 
-    proposed_solution = extract_section(asd, "Proposed Solution", "EC2 Sizing/Specifications (Guidance on OS Volumes & MS Office Support)", solution_headers)
+    proposed_solution = extract_section(arb, "Proposed Solution", "EC2 Sizing/Specifications (Guidance on OS Volumes & MS Office Support)", solution_headers)
     prune(proposed_solution)
     section_content["Proposed Solution"] = proposed_solution
 
-    ec2s = extract_table(asd, "EC2 Sizing/Specifications", "On-Prem Servers Sizing/Specifications", ec2_table_headers)
+    ec2s = extract_table(arb, "EC2 Sizing/Specifications", "On-Prem Servers Sizing/Specifications", ec2_table_headers)
     section_content["EC2 Sizing/Specifications"] = ec2s
 
-    servers = extract_table(asd, "On-Prem Servers Sizing/Specifications", "Proposed Server Details", servers_table_headers)
+    servers = extract_table(arb, "On-Prem Servers Sizing/Specifications", "Proposed Server Details", servers_table_headers)
     section_content["On-Prem Servers Sizing/Specification"] = servers
 
-    deployment_details = extract_table(asd, "Hosted Location", "Miscellaneous Information", deployment_details_headers, False)
+    deployment_details = extract_table(arb, "Hosted Location", "Miscellaneous Information", deployment_details_headers, False)
     section_content["Deployment Details"] = deployment_details
 
-    output_path = "./file_processing/data/asd.json"
+    output_path = "./file_processing/data/arb.json"
 
     with open(output_path, 'w') as jsonfile:
         json.dump(section_content, jsonfile, indent=4)
 
-    asd.close()
+    arb.close()
 
     return section_content
 

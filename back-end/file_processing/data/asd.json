@@ -29,7 +29,7 @@
             "RAM": "16",
             "Non-OS SAN Storage": "400 GB",
             "Count": "1",
-            "Domain/DNS": ".sunlifecorp. com",
+            "Domain/DNS": ".example.com",
             "Data Residency Restrictions": "none",
             "Data Classification": "Internal",
             "Server Role": "VCOM Monitor"

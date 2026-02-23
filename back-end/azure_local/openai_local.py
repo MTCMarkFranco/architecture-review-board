@@ -5,7 +5,7 @@ import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from azure_local.search_service import search_index
 
-asd_mappings = {
+arb_mappings = {
     "Introduction": ["Operational Excellence"],
     "Key Functionalities/Capabilities": ["Portability and Modularization"],
     "Assumptions/Constraints/Recommendations": ["Reliability"],
@@ -45,7 +45,7 @@ def setup():
 
     return kernel
 
-async def generate_iac(asd: dict):
+async def generate_iac(arb: dict):
     kernel = setup()
 
     req_settings = kernel.get_prompt_execution_settings_from_service_id("dv")
@@ -56,14 +56,14 @@ async def generate_iac(asd: dict):
     content = ""
 
     for section in iac_sections:
-        asd_content = asd[section]
+        arb_content = arb[section]
 
-        if isinstance(asd_content, list):
-            for item in asd_content:
+        if isinstance(arb_content, list):
+            for item in arb_content:
                 content += json.dumps(item)
         else:
-            if asd_content and "N/A" not in asd_content:
-                content += asd_content
+            if arb_content and "N/A" not in arb_content:
+                content += arb_content
 
     prompt = [
         {
@@ -108,7 +108,7 @@ async def generate_iac(asd: dict):
     return result_list
 
 
-async def validate_asd(asd: dict):
+async def validate_arb(arb: dict):
     kernel = setup()
 
     req_settings = kernel.get_prompt_execution_settings_from_service_id("dv")
@@ -117,9 +117,9 @@ async def validate_asd(asd: dict):
     req_settings.top_p = 0.95
     
     tasks = []
-    for section, content in asd.items():
+    for section, content in arb.items():
         if content and "N/A" not in content:
-            policy_categories = asd_mappings[section]
+            policy_categories = arb_mappings[section]
             for category in policy_categories:
                 task = validate_section(kernel, req_settings, category, content)
                 tasks.append(task)
@@ -129,7 +129,7 @@ async def validate_asd(asd: dict):
     return results
 
 
-async def validate_section(kernel, req_settings, policy_category, asd_content):
+async def validate_section(kernel, req_settings, policy_category, arb_content):
     policies = search_index(policy_category)
 
     prompt = [
@@ -150,7 +150,7 @@ async def validate_section(kernel, req_settings, policy_category, asd_content):
             "role": "user",
             "content": f"""
                         [Design Document Section]
-                        {asd_content}
+                        {arb_content}
                         [Design Document Section]
 
                         [Policies]
