@@ -1,0 +1,45 @@
+{
+    "Introduction": "A new server hosted component is required to support the Data Centre Services team. This product will monitor and alert on UPS systems hosted on North American locations. The selected solution is an Eaton Distributed IT Performance Management virtual appliance. ",
+    "Key Functionalities/Capabilities": "Monitoring of UPS systems hosted in distributed locations. Allows support staff to pro-actively address degraded systems rather than waiting for failure - means less down time for UPS systems and cost savings associated to less on site technician calls. ",
+    "Assumptions/Constraints/Recommendations": "OVF appliance can be hosted on AWS Appliance has network access to distributed end points in the Corporate Network. Static IP address required for server and can be supported by CEG. The IP of the primary ENI won\u2019t change during the EC2\u2019s lifetime unless the instance is terminated. Keeping the IP configuration set to DHCP on the EC2 side should be sufficient The Data Centre Operations team accepts the risk of having no pre-production test environment This means patches/upgrades will be applied to production directly DCO accepts the risk of an outage related to patch/upgrade activity This solution must be hosted on premise using VMWare Cloud Engineering and Server teams confirm they do not have a process to support OVF installation on AWS EC2 ",
+    "User/Usage Requirements": "Small group of internal users will interact with the system for configuration and alerting. This is the Data Centre Services team. ",
+    "Interface Requirements": "Web UI integrated with product ",
+    "Security Requirements": "N/A ",
+    "Network Requirements": "No significant network impact expected. ",
+    "Software Requirements": "It should be ensured that all software products that are deployed in the final solution in various environments are appropriately procured, and are in compliance to and current with respect to their licensing requirements.  For AWS hosted solutions, costs are typically embedded within the service cost model ",
+    "Performance Requirements": "N/A ",
+    "Supportability Requirements": "Since this is a vendor supplied appliance image, the vendor will be responsible for support of the image components. ",
+    "Storage Requirements": "400 GB per server ",
+    "Database Requirements": "N/A - included as part of image ",
+    "Disaster Recovery Requirements": "Disaster recovery approach will be backup and restore. ",
+    "Compliance Requirements": "N/A ",
+    "Licensing Requirements": "Project team needs to ensure that all appropriate licensing is up to date and in compliance with software vendors\u2019 EULA, wherever applicable ",
+    "Proposed Solution": {
+        "Pre-Production Architecture": "(Document details on lower environments including Stage) ",
+        "Production/DR Architecture": "The server will be protected with AWS backup, which leverages S3 across multiple AZs. "
+    },
+    "EC2 Sizing/Specifications": [],
+    "On-Prem Servers Sizing/Specification": [
+        {
+            "Environment/Location": "Production / WK",
+            "Server Type": "VM",
+            "OS": "OVF image supplied",
+            "Network Zone": "Corp",
+            "CPU Cores": "4",
+            "RAM": "16",
+            "Non-OS SAN Storage": "400 GB",
+            "Count": "1",
+            "Domain/DNS": ".sunlifecorp. com",
+            "Data Residency Restrictions": "none",
+            "Data Classification": "Internal",
+            "Server Role": "VCOM Monitor"
+        }
+    ],
+    "Deployment Details": [
+        {
+            "Hosted Location": "WK",
+            "Countries/Regions Serviced": "Canada & US",
+            "Business Unit(s)": "Corporate"
+        }
+    ]
+}
