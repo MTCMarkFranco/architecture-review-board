@@ -7,23 +7,23 @@ export interface IaCResults {
 
 export default function IaCResults({ results }: IaCResults) {
   return (
-    <div className="px-14 overflow-x-auto font-main pb-4 w-screen">
-      <div className="text-2xl font-bold pb-2 text-blue">IaC Results</div>
+    <div className="overflow-x-auto font-main">
+      <div className="text-xl font-semibold pb-3 text-ms-text">IaC Results</div>
       {results ? (
-        <div className='min-w-full'>
+        <div className='min-w-full flex flex-col gap-y-3'>
           {results.map((code, index) => (
             <SyntaxHighlighter
               language="hcl"
               style={vscDarkPlus}
               key={index}
-              customStyle={{ borderRadius: "10px", padding: "20px", fontSize: "16px" }}
+              customStyle={{ borderRadius: "8px", padding: "20px", fontSize: "14px" }}
             >
               {code}
             </SyntaxHighlighter>
           ))}
         </div>
       ) : (
-        <div>No results found.</div>
+        <div className="text-ms-text-secondary">No results found.</div>
       )}
     </div>
   );

@@ -33,7 +33,7 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
     const formData = new FormData();
     formData.append("file", selectedFile, selectedFile.name);
 
-    const apiUrl = "http://127.0.0.1:5000/validateasd";
+    const apiUrl = "http://127.0.0.1:5000/validatearb";
 
     await axios
       .post(apiUrl, formData, {
@@ -88,9 +88,9 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
 
   return (
     <div className="relative flex w-full h-full flex-col gap-y-3 items-center font-main">
-      <label className="flex flex-row z-10 bg-clip-padding gap-y-4 px-2 py-2 items-center justify-center border-blue border-2 w-36 h-full cursor-pointer rounded-lg bg-blue text-white hover:scale-105 transition ease-in-out">
-        <FontAwesomeIcon icon={faArrowUpFromBracket} className="mr-2" />
-        Upload ASD
+      <label className="flex z-10 bg-clip-padding px-6 py-3 items-center justify-center gap-2 border border-ms-blue w-52 cursor-pointer rounded-md bg-ms-blue text-white text-center hover:bg-ms-accent transition-colors duration-150 shadow-sm">
+        <FontAwesomeIcon icon={faArrowUpFromBracket} className="flex-shrink-0" />
+        <span>Upload &amp; Validate</span>
         <input
           name="document"
           type="file"
@@ -106,21 +106,21 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
 
       {selectedFile && (
         <div className="flex flex-col gap-y-3 items-center w-full">
-          <div>
+          <div className="text-ms-success">
             <FontAwesomeIcon
               icon={faCircleCheck}
-              className="text-emerald-600 mr-1"
+              className="mr-1"
             />
             Upload success!
           </div>
 
-          <div>
+          <div className="text-ms-text">
             Uploaded: <strong>{selectedFile.name}</strong>
           </div>
 
-          <div className="flex flex-row gap-x-2">
+          <div className="flex flex-row gap-x-3">
             <button
-              className="bg-blue border-black text-white p-2 w-36 py-2.5 rounded-lg hover:scale-105 transition ease-in-out"
+              className="bg-ms-blue text-white px-4 py-2.5 rounded-md hover:bg-ms-accent transition-colors duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleFileValidate}
               disabled={isValidating}
             >
@@ -131,13 +131,13 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
               ) : (
                 <div>
                   <FontAwesomeIcon icon={faThumbsUp} className="mr-2" />
-                  Validate ASD
+                  Upload & Validate
                 </div>
               )}
             </button>
 
             <button
-              className="bg-blue border-black text-white p-2 w-36 py-2.5 rounded-lg hover:scale-105 transition ease-in-out"
+              className="bg-ms-purple text-white px-4 py-2.5 rounded-md hover:opacity-90 transition-colors duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleIACGeneration}
               disabled={isGenerating}
             >
