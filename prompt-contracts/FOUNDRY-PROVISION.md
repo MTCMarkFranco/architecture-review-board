@@ -60,3 +60,23 @@ Provide an idempotent provisioning script that guarantees an Azure AI Foundry v2
 - [ ] `back-end/README.md` documents prerequisites, run command, and expected exit codes.
 - [ ] If `gpt-5.4-pro` is unavailable in Canada Central, the script exits with a clear blocker (no silent fallback to another model).
 - [ ] No keys are persisted to disk or printed.
+
+
+---
+
+## Model fallback decision (added post-review)
+
+**Approved by:** repo owner (ARB renewal session)
+
+`gpt-5.4-pro` is not yet listed in Canada Central. Until it becomes available, all Foundry-bound code paths default to the env-driven `FOUNDRY_MODEL` with the fallback chain:
+
+`gpt-5.4-pro` ➜ `gpt-5.3-chat-1` (or whatever chat-capable model is already deployed in `foundry-cc-canada`)
+
+### Acceptance criteria for the fallback
+
+- [ ] Provisioning script reads `FOUNDRY_MODEL` (default `gpt-5.4-pro`); if the requested model is unavailable in Canada Central, it falls back to `gpt-5.3-chat-1`, logs a clear `WARNING` line, and exits zero.
+- [ ] `.env.example` documents both names in priority order.
+- [ ] When `gpt-5.4-pro` becomes available the next provisioning run upgrades automatically (no code change required).
+- [ ] The fallback substitution is mentioned in the PR body of every PR that touches model selection.
+
+This addendum supersedes edge-case clause 2's "exit non-zero" rule for the specific case where the unavailable model is `gpt-5.4-pro` AND the fallback model is already deployed.

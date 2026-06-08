@@ -50,3 +50,19 @@ Replace the Semantic Kernel + Azure OpenAI (key-auth) orchestration in `back-end
 - [ ] `pytest back-end/tests/` collects without import errors.
 - [ ] Endpoints `/validatearb` and `/geniac` still accept `multipart/form-data` with field `file` and return JSON.
 - [ ] No `AzureKeyCredential` and no `api_key=` literal anywhere in `back-end/`.
+
+
+---
+
+## Model fallback decision (added post-review)
+
+**Approved by:** repo owner (ARB renewal session)
+
+The orchestrator binds agents to whichever chat model `FOUNDRY_MODEL` resolves to at runtime. Until `gpt-5.4-pro` lights up in Canada Central the fallback is `gpt-5.3-chat-1`.
+
+### Acceptance criteria for the fallback
+
+- [ ] Agent factory reads `FOUNDRY_MODEL` once at startup; default `gpt-5.4-pro`, documented fallback `gpt-5.3-chat-1`.
+- [ ] Startup log line records the resolved model so operators can confirm which model is serving traffic.
+- [ ] No model name is hard-coded inside agent definitions.
+- [ ] Prompt contracts for individual agents do not redeclare the model name — they inherit from this contract.
