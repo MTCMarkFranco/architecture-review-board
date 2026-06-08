@@ -1,4 +1,3 @@
-import fitz
 import json
  
 summary_headers = [
@@ -68,6 +67,7 @@ deployment_details_headers = [
 ]
 
 def parse_arb(pdf_path='', pdf_file=None, local=False):
+    import fitz  # lazy import so docx-only environments don't require pymupdf
     if local:
         arb = fitz.open(pdf_path)
     else:
@@ -202,7 +202,133 @@ def prune(section):
         del section[key]
 
 
+def parse_arb_docx(docx_path='', docx_file=None, local=False):
+    """Parse a Word (.docx) ASD into the same dict shape as parse_arb.
+
+    Accepts either a path (``local=True``) or any file-like object (a
+    ``werkzeug.FileStorage`` from Flask, a ``BytesIO``, etc.).
+    """
+    from docx import Document  # local import; only needed when called
+
+    if local:
+        doc = Document(docx_path)
+    else:
+        doc = Document(docx_file)
+
+    blocks = list(_iter_blocks(doc))
+
+    section_content = {}
+
+    summary = _docx_extract_section(blocks, "Summary",
+                                    "Solution Requirements",
+                                    summary_headers)
+    section_content.update(summary)
+
+    requirements = _docx_extract_section(blocks, "Solution Requirements",
+                                         "Affinity/Anti-Affinity Requirements",
+                                         requirement_headers)
+    section_content.update(requirements)
+
+    proposed = _docx_extract_section(blocks, "Proposed Solution",
+                                     "EC2 Sizing/Specifications (Guidance on OS Volumes & MS Office Support)",
+                                     solution_headers)
+    prune(proposed)
+    section_content["Proposed Solution"] = proposed
+
+    section_content["EC2 Sizing/Specifications"] = _docx_extract_table(
+        blocks, "EC2 Sizing/Specifications", ec2_table_headers)
+    section_content["On-Prem Servers Sizing/Specification"] = _docx_extract_table(
+        blocks, "On-Prem Servers Sizing/Specifications", servers_table_headers)
+    section_content["Deployment Details"] = _docx_extract_table(
+        blocks, "Hosted Location", deployment_details_headers)
+
+    return section_content
+
+
+def _iter_blocks(document):
+    """Yield (kind, payload) tuples in true document order.
+
+    kind is "p" for paragraph text or "t" for a docx table object.
+    """
+    from docx.oxml.ns import qn
+
+    body = document.element.body
+    para_iter = iter(document.paragraphs)
+    table_iter = iter(document.tables)
+    para_map = {p._p: p for p in document.paragraphs}
+    table_map = {t._tbl: t for t in document.tables}
+    for child in body.iterchildren():
+        if child.tag == qn('w:p'):
+            p = para_map.get(child)
+            if p is not None:
+                yield ("p", (p.text or "").strip())
+        elif child.tag == qn('w:tbl'):
+            t = table_map.get(child)
+            if t is not None:
+                yield ("t", t)
+
+
+def _docx_extract_section(blocks, section_header, ending_header, subheaders):
+    sections = {}
+    in_section = False
+    cur_sub = ''
+    for kind, payload in blocks:
+        if kind != "p":
+            continue
+        line = payload
+        if line == section_header and not in_section:
+            in_section = True
+            continue
+        if in_section and line == ending_header:
+            break
+        if in_section:
+            if line in subheaders:
+                cur_sub = line
+                sections[cur_sub] = ''
+            else:
+                if cur_sub and line:
+                    sections[cur_sub] = sections[cur_sub] + line + ' '
+    return sections
+
+
+def _docx_extract_table(blocks, table_header, table_headers):
+    """Find the first table that immediately follows a paragraph equal to
+    ``table_header`` (or contains it) and return its data rows as dicts."""
+    target_table = None
+    saw_header = False
+    for kind, payload in blocks:
+        if kind == "p":
+            text = payload
+            if text == table_header or table_header in text:
+                saw_header = True
+                continue
+            if saw_header and text:
+                # If we encountered another heading without a table, abort.
+                pass
+        elif kind == "t" and saw_header:
+            target_table = payload
+            break
+    if target_table is None:
+        return []
+    rows: list[dict] = []
+    table_rows = list(target_table.rows)
+    if len(table_rows) <= 1:
+        return []
+    for tr in table_rows[1:]:
+        cells = [c.text.replace('\n', ' ').strip() for c in tr.cells]
+        if not any(cells) or cells[0] == '':
+            break
+        entry = {}
+        for i, val in enumerate(cells):
+            if i >= len(table_headers):
+                break
+            entry[table_headers[i]] = val
+        rows.append(entry)
+    return rows
+
+
 def extract_policies(pdf_path):
+    import fitz  # lazy import
     pdf_document = fitz.open(pdf_path)
 
     sections = {}
