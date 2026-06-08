@@ -1,9 +1,23 @@
-asyncio
-azure-core==1.30.1
-azure-search-documents==11.4.0
-openai
-azure-storage-blob==12.19.1
-semantic-kernel==0.9.5b1
-flask_cors
-fitz==0.0.1.dev2
-PyMuPDF==1.23.26
+# Microsoft Agent Framework + Azure AI Foundry v2
+agent-framework-foundry>=1.0.1
+azure-ai-projects>=2.0.0
+
+# Azure RBAC + Search
+azure-identity>=1.15.0
+azure-core>=1.30.1
+azure-search-documents>=11.5.0
+
+# Web
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Document parsing
+PyMuPDF>=1.23.26
+python-docx>=1.1.0
+
+# Config
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0

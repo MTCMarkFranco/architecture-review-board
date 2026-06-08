@@ -1,58 +1,124 @@
+"""Flask entry-point for the ARB Bot back-end."""
+
+from __future__ import annotations
+
 import asyncio
-from flask import Flask, request
+import logging
+import os
+
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-from azure_local.search_service import create_policy_index, upload_policies, search_index
-from azure_local.openai_local import validate_arb, generate_iac
+
+from agents.config import Config, ConfigError
+from agents.errors import (
+    AgentNotFoundError,
+    WorkflowError,
+    WorkflowTimeoutError,
+)
+from agents.orchestrator import ArbWorkflow
 from file_processing.parsing import parse_arb
 
+try:
+    from file_processing.parsing import parse_arb_docx  # added in #16
+except ImportError:  # pragma: no cover
+    parse_arb_docx = None  # type: ignore[assignment]
+
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+log = logging.getLogger("arb.app")
 
 app = Flask(__name__)
 CORS(app)
 
+_workflow: ArbWorkflow | None = None
+
+
+def _get_workflow() -> ArbWorkflow:
+    global _workflow
+    if _workflow is None:
+        _workflow = ArbWorkflow(config=Config())
+    return _workflow
+
+
+def _parse_uploaded(file_storage) -> dict:
+    """Dispatch on extension. Returns parsed ARB dict."""
+    name = (file_storage.filename or "").lower()
+    if name.endswith(".pdf"):
+        return parse_arb(pdf_file=file_storage)
+    if name.endswith(".docx"):
+        if parse_arb_docx is None:
+            raise ValueError(
+                ".docx support requires python-docx; install requirements.txt"
+            )
+        return parse_arb_docx(docx_file=file_storage)
+    raise ValueError(f"Unsupported file extension: {name!r}; expected .pdf or .docx")
+
+
+def _run(coro):
+    return asyncio.run(coro)
+
+
+@app.errorhandler(ConfigError)
+def _handle_config(e):
+    return jsonify({"error": "config", "error_code": "config",
+                    "message": str(e)}), 500
+
+
+@app.errorhandler(AgentNotFoundError)
+def _handle_missing(e):
+    return jsonify({"error": "agent_not_found",
+                    "error_code": "agent_not_found",
+                    "agent": e.agent_name,
+                    "message": str(e)}), 500
+
+
+@app.errorhandler(WorkflowTimeoutError)
+def _handle_timeout(e):
+    return jsonify({"error": "timeout",
+                    "error_code": "timeout",
+                    "message": str(e)}), 504
+
+
+@app.errorhandler(WorkflowError)
+def _handle_workflow(e):
+    return jsonify({"error": "workflow",
+                    "error_code": "workflow",
+                    "message": str(e)}), 500
+
+
 @app.route("/validatearb", methods=["POST"])
 def validate():
-    if 'file' not in request.files:
-        return 'No file part', 400
-    
-    file = request.files['file']
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "no_filename"}), 400
+    try:
+        arb = _parse_uploaded(f)
+    except ValueError as e:
+        return jsonify({"error": "bad_request", "message": str(e)}), 400
+    findings = _run(_get_workflow().validate(arb))
+    return jsonify(findings)
 
-    if file.filename == '':
-        return 'No selected file', 400
-    
-    if file:
-        print(f"Received file: {file.filename}")
-
-    arb = parse_arb(pdf_file=file)
-
-    result = asyncio.run(validate_arb(arb))
-
-    return result
 
 @app.route("/geniac", methods=["POST"])
 def geniac():
-    if 'file' not in request.files:
-        return 'No file part', 400
-    
-    file = request.files['file']
-
-    if file.filename == '':
-        return 'No selected file', 400
-    
-    if file:
-        print(f"Received file: {file.filename}")
-
-    arb = parse_arb(pdf_file=file)
-
-    result = asyncio.run(generate_iac(arb))
-
-    return result
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "no_filename"}), 400
+    try:
+        arb = _parse_uploaded(f)
+    except ValueError as e:
+        return jsonify({"error": "bad_request", "message": str(e)}), 400
+    scripts = _run(_get_workflow().iac(arb))
+    return jsonify(scripts)
 
 
-if __name__ == '__main__':
-    index = 'policy_index'
-    policies_path = './file_processing/data/policies.json'
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
 
-    # create_policy_index(index)
-    # upload_policies(index, policies_path)
 
+if __name__ == "__main__":
     app.run(debug=True)
