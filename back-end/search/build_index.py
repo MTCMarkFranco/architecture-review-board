@@ -99,7 +99,11 @@ def make_embedder(endpoint: str, deployment: str):
     def embed(text: str) -> list[float]:
         if not text.strip():
             return [0.0] * EMBEDDING_DIMENSIONS
-        resp = client.embeddings.create(model=deployment, input=[text])
+        resp = client.embeddings.create(
+            model=deployment,
+            input=[text],
+            dimensions=EMBEDDING_DIMENSIONS,
+        )
         vec = resp.data[0].embedding
         if len(vec) != EMBEDDING_DIMENSIONS:
             raise RuntimeError(
@@ -245,6 +249,12 @@ def main() -> int:
     parser.add_argument("--skip-ingest", action="store_true",
                         help="Only create/update the index.")
     args = parser.parse_args()
+
+    log.info(
+        "embeddings model=%s requested_dims=%d",
+        args.embeddings_deployment,
+        EMBEDDING_DIMENSIONS,
+    )
 
     if not args.search_endpoint:
         log.error("AZURE_SEARCH_ENDPOINT not set.")
