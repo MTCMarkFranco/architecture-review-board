@@ -228,3 +228,34 @@ def extract_policies(pdf_path):
 
     return json_array
  
+
+def extract_policies_docx(docx_path):
+    """Extract policy sections from a Word document.
+
+    Mirrors `extract_policies` (which targets PDF via PyMuPDF): a section
+    header is any paragraph whose text is UPPERCASE, does not contain
+    'INTERNAL', and starts with a digit (e.g. `1. IDENTITY AND ACCESS
+    MANAGEMENT`). All non-header paragraphs accumulate into the most-recent
+    section's content.
+    """
+    from docx import Document
+
+    doc = Document(docx_path)
+
+    sections = {}
+    cur_line = ''
+
+    for para in doc.paragraphs:
+        line = (para.text or '').strip()
+        if not line:
+            continue
+        if (line.isupper()
+                and 'INTERNAL' not in line
+                and line.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9'))):
+            cur_line = line
+            sections[cur_line] = ''
+        else:
+            if cur_line:
+                sections[cur_line] = sections[cur_line] + ' ' + line if sections[cur_line] else line
+
+    return [{"header": k, "content": v} for k, v in sections.items()]
