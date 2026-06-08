@@ -181,6 +181,41 @@ def ensure_account(rg: str) -> dict[str, str]:
     return {"name": name, "endpoint": a.get("properties", {}).get("endpoint", "")}
 
 
+def _get_latest_model_version(model_name: str) -> str:
+    """Look up the latest OpenAI-format version for ``model_name`` in LOCATION."""
+    models = az("cognitiveservices", "model", "list", "-l", LOCATION) or []
+    versions: list[str] = []
+    for m in models:
+        info = m.get("model") or {}
+        if info.get("name") == model_name and (info.get("format") or "OpenAI") == "OpenAI":
+            ver = info.get("version")
+            if ver:
+                versions.append(ver)
+    if not versions:
+        raise ProvisionError(
+            f"No OpenAI versions discoverable for model '{model_name}' in {LOCATION}. "
+            "Run `az cognitiveservices model list -l <location>` to inspect."
+        )
+    # Versions are date-stamped strings (e.g. '2024-08-06') that sort correctly lexicographically.
+    return sorted(versions)[-1]
+
+
+def ensure_managed_identity(rg: str, account: str) -> None:
+    """Ensure the AI Services account has a System Assigned Managed Identity.
+
+    Foundry v2 project creation requires this; reused accounts created before
+    this script may not have it enabled.
+    """
+    info = az("cognitiveservices", "account", "show", "-g", rg, "-n", account) or {}
+    identity_type = ((info.get("identity") or {}).get("type") or "").lower()
+    if "systemassigned" in identity_type:
+        log.debug("Managed identity already enabled on %s", account)
+        return
+    log.info("Enabling System Assigned Managed Identity on %s", account)
+    az("cognitiveservices", "account", "identity", "assign",
+       "-g", rg, "-n", account, "--mi-system-assigned")
+
+
 def ensure_deployment(rg: str, account: str, model_name: str,
                        deployment_name: str | None = None,
                        capability: dict[str, str] | None = None) -> str:
@@ -193,57 +228,83 @@ def ensure_deployment(rg: str, account: str, model_name: str,
     if existing:
         log.info("Reusing deployment %s (model %s)", existing["name"], model_name)
         return existing["name"]
-    log.info("Creating deployment %s (model %s)", deployment_name, model_name)
-    args = [
-        "cognitiveservices", "account", "deployment", "create",
-        "-g", rg, "-n", account,
-        "--deployment-name", deployment_name,
-        "--model-name", model_name,
-        "--model-format", "OpenAI",
-        "--sku-capacity", "1",
-        "--sku-name", "Standard",
-    ]
-    if capability:
-        for k, v in capability.items():
-            args.extend(["--capability", f"{k}={v}"])
-    az(*args)
-    return deployment_name
+    model_version = _get_latest_model_version(model_name)
+    # Try newer GlobalStandard SKU first (preferred for AI workloads, broader
+    # region availability), fall back to Standard. Surface the last error if both
+    # fail so the caller can react.
+    last_err: ProvisionError | None = None
+    for sku_name in ("GlobalStandard", "Standard"):
+        log.info("Creating deployment %s (model %s, version %s, sku %s)",
+                 deployment_name, model_name, model_version, sku_name)
+        args = [
+            "cognitiveservices", "account", "deployment", "create",
+            "-g", rg, "-n", account,
+            "--deployment-name", deployment_name,
+            "--model-name", model_name,
+            "--model-version", model_version,
+            "--model-format", "OpenAI",
+            "--sku-capacity", "1",
+            "--sku-name", sku_name,
+        ]
+        if capability:
+            for k, v in capability.items():
+                args.extend(["--capability", f"{k}={v}"])
+        try:
+            az(*args)
+            return deployment_name
+        except ProvisionError as e:
+            last_err = e
+            log.warning("SKU %s rejected for %s: trying fallback", sku_name, model_name)
+    raise last_err or ProvisionError(f"Could not create deployment for {model_name}")
 
 
 def ensure_project(rg: str, account: str, project_name: str) -> dict[str, str]:
-    """Create a Foundry v2 project under the AI Services account.
+    """Ensure a Foundry v2 project exists under the AI Services account.
 
-    Uses the resource manager REST surface via `az rest` because not every
-    `az cognitiveservices` build exposes a first-class `project create`
-    subcommand.
+    Uses ``az cognitiveservices account project`` (available in az CLI >= 2.86).
+    Reuses an existing project named ``project_name`` if present; otherwise
+    reuses the default project the AI Services resource auto-created; otherwise
+    creates a new one. The first-class subcommand is preferred over ``az rest``
+    because it handles identity assignment and api-version selection internally.
     """
-    sub_id = az("account", "show")["id"]
-    base = (
-        f"/subscriptions/{sub_id}/resourceGroups/{rg}/providers/"
-        f"Microsoft.CognitiveServices/accounts/{account}/projects/{project_name}"
-    )
-    api_version = "2025-04-01-preview"
-    try:
-        existing = az("rest", "--method", "get",
-                      "--url", f"https://management.azure.com{base}?api-version={api_version}")
-        if existing and existing.get("name") == project_name:
-            log.info("Reusing project %s", project_name)
-            return {
-                "name": project_name,
-                "endpoint": existing.get("properties", {}).get("endpoint", ""),
-            }
-    except ProvisionError:
-        pass
+    projects = az("cognitiveservices", "account", "project", "list",
+                  "-g", rg, "-n", account) or []
+
+    def _extract_endpoint(p: dict[str, Any]) -> str:
+        endpoints = (p.get("properties") or {}).get("endpoints") or {}
+        # Prefer the AI Foundry API endpoint; fall back to the first available.
+        return endpoints.get("AI Foundry API") or next(iter(endpoints.values()), "")
+
+    # Project objects are returned with the composite name "<account>/<project>";
+    # the short name we created with lives at the tail.
+    def _short_name(p: dict[str, Any]) -> str:
+        full = p.get("name", "") or ""
+        return full.split("/", 1)[-1] if "/" in full else full
+
+    named = next((p for p in projects if _short_name(p) == project_name), None)
+    if named:
+        log.info("Reusing project %s", project_name)
+        return {"name": project_name, "endpoint": _extract_endpoint(named)}
+
+    default_proj = next((p for p in projects
+                          if (p.get("properties") or {}).get("isDefault") is True),
+                         None)
+    if default_proj:
+        short = _short_name(default_proj)
+        log.info("Reusing default project %s", short)
+        return {"name": short, "endpoint": _extract_endpoint(default_proj)}
 
     log.info("Creating Foundry v2 project %s", project_name)
-    body = json.dumps({"location": LOCATION, "properties": {}})
-    created = az("rest", "--method", "put",
-                 "--url", f"https://management.azure.com{base}?api-version={api_version}",
-                 "--body", body,
-                 "--headers", "Content-Type=application/json")
+    created = az(
+        "cognitiveservices", "account", "project", "create",
+        "-g", rg, "-n", account,
+        "--project-name", project_name,
+        "-l", LOCATION,
+        "--assign-identity",
+    )
     return {
         "name": project_name,
-        "endpoint": (created or {}).get("properties", {}).get("endpoint", ""),
+        "endpoint": _extract_endpoint(created or {}),
     }
 
 
@@ -302,6 +363,7 @@ def main() -> int:
         if args.dry_run:
             project_info = {"name": DEFAULT_PROJECT_NAME, "endpoint": "<dry-run>"}
         else:
+            ensure_managed_identity(rg, account_name)
             project_info = ensure_project(rg, account_name, DEFAULT_PROJECT_NAME)
 
         values = {
