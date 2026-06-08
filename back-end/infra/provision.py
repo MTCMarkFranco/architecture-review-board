@@ -18,10 +18,17 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+# Resolve the az CLI executable once. On Windows the launcher is az.cmd; using
+# subprocess.run([...], shell=False) with a bare "az" raises FileNotFoundError
+# (WinError 2) because CreateProcess does not honour PATHEXT. shutil.which()
+# does, returning the full path with the correct extension.
+AZ_EXE = shutil.which("az") or "az"
 
 LOCATION = os.getenv("FOUNDRY_LOCATION", "canadacentral")
 MODEL_NAME = os.getenv("FOUNDRY_MODEL", "gpt-5.4-pro")
@@ -47,7 +54,7 @@ class ProvisionError(RuntimeError):
 
 def az(*args: str, check: bool = True, capture: bool = True) -> Any:
     """Run an `az` command, return parsed JSON on success."""
-    cmd = ["az", *args, "-o", "json"]
+    cmd = [AZ_EXE, *args, "-o", "json"]
     log.debug("$ %s", " ".join(cmd))
     res = subprocess.run(
         cmd,
