@@ -1,30 +1,57 @@
-# React + TypeScript + Vite
+# ARB Bot — front-end
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 18 + TypeScript + Vite + Tailwind CSS. Single-page UI for the ARB validator + IaC generator. Talks to the Flask back-end at `http://127.0.0.1:5000` by default.
 
-Currently, two official plugins are available:
+See the [repo root README](../README.md) for the full end-to-end setup.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Quick start
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
+```powershell
+cd front-end
+npm install
+npm run dev
 ```
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+Opens on `http://localhost:5173`. The dev server proxies API calls to the Flask back-end (started separately — see [`../back-end/README.md`](../back-end/README.md)).
+
+## Scripts
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Vite dev server with HMR |
+| `npm run build` | TypeScript check + production build to `dist/` |
+| `npm run preview` | Serve the built bundle locally |
+| `npm run lint` | ESLint with type-aware rules |
+
+## Configuration
+
+The API base URL is currently hard-coded in `src/components/FileUpload.tsx`. For deployments, update it to point at your back-end (App Service / Container Apps / etc.).
+
+## Project layout
+
+```
+front-end/
+├── index.html                      # entry
+├── vite.config.ts
+├── tailwind.config.js              # Microsoft Fluent palette
+├── tsconfig.json
+└── src/
+    ├── App.tsx                     # header, hero, layout
+    ├── main.tsx                    # React entry
+    ├── index.css                   # Tailwind directives + Segoe UI
+    ├── components/
+    │   ├── FileUpload.tsx          # upload + action buttons
+    │   ├── ValidationTable.tsx     # findings table
+    │   ├── IaCResults.tsx          # Terraform code blocks (Prism HCL)
+    │   ├── MicrosoftLogo.tsx
+    │   └── AiSearchBadge.tsx
+    └── data/types.ts               # API DTOs
+```
+
+## Tech stack
+
+- React 18 + TypeScript
+- Vite (dev server + build)
+- Tailwind CSS — Microsoft Fluent-inspired theme
+- `react-syntax-highlighter` (Prism + HCL) for IaC output
+- FontAwesome icons
