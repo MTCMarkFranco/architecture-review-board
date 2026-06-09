@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv(os.getenv("DOTENV_PATH", ".env.local"), override=False)
 load_dotenv(".env", override=False)
+
+# Also load the repo-root .env (one level above back-end/) so commands run
+# from back-end/ pick up provisioning outputs without needing a CWD-local copy.
+_REPO_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
+if _REPO_ROOT_ENV.is_file():
+    load_dotenv(_REPO_ROOT_ENV, override=False)
 
 
 class ConfigError(RuntimeError):
