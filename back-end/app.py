@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path
+from typing import Any
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -17,6 +19,20 @@ from agents.errors import (
 )
 from agents.orchestrator import ArbWorkflow
 from file_processing.parsing import parse_arb
+
+# Load environment variables from a .env file at the repository root (one
+# level above back-end/) before reading any os.getenv() calls below. Existing
+# process env vars take precedence (override=False) so callers can still
+# override .env values inline (e.g. `$env:FOUNDRY_MODEL = "..."`).
+try:
+    from dotenv import load_dotenv
+
+    _REPO_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
+    if _REPO_ROOT_ENV.is_file():
+        load_dotenv(_REPO_ROOT_ENV, override=False)
+except ImportError:
+    pass
+
 
 try:
     from file_processing.parsing import parse_arb_docx  # added in #16

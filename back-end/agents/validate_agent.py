@@ -3,9 +3,13 @@
 Calls a Foundry v2 hosted prompt agent ``ValidateArbAgent`` per ASD section
 and aggregates the JSON findings into a single list.
 
-Uses ``azure-ai-projects`` v2 for agent definition lookup (name → id) and
-``azure-ai-agents`` for runtime threads/messages/runs. Both authenticate via
-``DefaultAzureCredential`` (no API keys).
+Foundry v2 hosted prompt agents are invoked through the **Responses API** via
+the project's OpenAI client (``project.get_openai_client(agent_name=...)``);
+the agent's ``model`` parameter is its model deployment name. This is NOT the
+classic Assistants/Agents v1 surface (threads/messages/runs) — that path
+requires ``asst_xxx`` ids which Foundry v2 hosted agents do not have.
+
+Authentication is via ``DefaultAzureCredential`` (no API keys).
 """
 
 from __future__ import annotations
@@ -23,10 +27,11 @@ from .errors import AgentInvocationError, AgentNotFoundError
 
 logger = logging.getLogger(__name__)
 
-# Module-level cache of agent name → agent id. Agent ids are stable for the
-# lifetime of a deployment, so caching avoids a round-trip per section call.
-_AGENT_ID_CACHE: dict[str, str] = {}
-_AGENT_ID_LOCK = threading.Lock()
+# Module-level cache of (project_endpoint, agent_name) → agent-scoped OpenAI
+# client. The OpenAI client is thread-safe; caching avoids the per-call
+# ``get_openai_client`` round-trip overhead.
+_OAI_CLIENT_CACHE: dict[tuple[str, str], Any] = {}
+_OAI_CLIENT_LOCK = threading.Lock()
 
 # Section → policy categories (used to filter the AI Search index per call).
 SECTION_CATEGORIES: dict[str, list[str]] = {
@@ -127,7 +132,8 @@ def _build_search_failed_finding(
 async def _call_agent(client: Any, agent_name: str, prompt: str, config: Config) -> str:
     """Invoke a hosted agent and return its assistant text."""
     try:
-        # azure-ai-agents v1 surface — synchronous client, run in thread
+        # OpenAI sync client — run blocking call in a thread to keep asyncio
+        # fan-out non-blocking.
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, lambda: _sync_invoke(client, agent_name, prompt, config)
@@ -141,66 +147,49 @@ async def _call_agent(client: Any, agent_name: str, prompt: str, config: Config)
         raise AgentInvocationError(agent_name, msg) from e
 
 
-def _resolve_agent_id(agent_name: str, config: Config) -> str:
-    """Look up a hosted agent's id by name via AIProjectClient. Cached."""
-    cached = _AGENT_ID_CACHE.get(agent_name)
-    if cached:
+def _get_agent_openai_client(project_client: Any, config: Config, agent_name: str) -> Any:
+    """Return an OpenAI client scoped to the named Foundry v2 hosted agent.
+
+    Uses ``AIProjectClient.get_openai_client(agent_name=...)`` which sets the
+    base URL to the agent's ``/endpoint/protocols/openai/`` path. Cached per
+    (project endpoint, agent name).
+    """
+    cache_key = (config.foundry_project_endpoint, agent_name)
+    cached = _OAI_CLIENT_CACHE.get(cache_key)
+    if cached is not None:
         return cached
-    with _AGENT_ID_LOCK:
-        cached = _AGENT_ID_CACHE.get(agent_name)
-        if cached:
+    with _OAI_CLIENT_LOCK:
+        cached = _OAI_CLIENT_CACHE.get(cache_key)
+        if cached is not None:
             return cached
-        try:
-            from azure.ai.projects import AIProjectClient
-        except ImportError as e:  # pragma: no cover
-            raise AgentInvocationError(
-                agent_name,
-                "azure-ai-projects not installed. `pip install -r requirements.txt`",
-            ) from e
-        proj = AIProjectClient(
-            endpoint=config.foundry_project_endpoint,
-            credential=DefaultAzureCredential(),
-        )
-        try:
-            details = proj.agents.get(agent_name)
-        except Exception as e:  # noqa: BLE001
-            msg = str(e)
-            if "404" in msg or "not found" in msg.lower():
-                raise AgentNotFoundError(agent_name) from e
-            raise AgentInvocationError(agent_name, msg) from e
-        agent_id = getattr(details, "id", None)
-        if not agent_id:
-            raise AgentInvocationError(
-                agent_name, "agent definition has no id"
-            )
-        _AGENT_ID_CACHE[agent_name] = agent_id
-        return agent_id
+        oai = project_client.get_openai_client(agent_name=agent_name)
+        _OAI_CLIENT_CACHE[cache_key] = oai
+        return oai
 
 
 def _sync_invoke(client: Any, agent_name: str, prompt: str, config: Config) -> str:
-    # Create a thread, post a user message, run the agent, return assistant text.
-    agent_id = _resolve_agent_id(agent_name, config)
-    thread = client.threads.create()
-    client.messages.create(
-        thread_id=thread.id, role="user", content=prompt
+    """Invoke a Foundry v2 hosted agent via the Responses API.
+
+    The ``model`` parameter MUST be the agent's underlying model deployment
+    name (Foundry rejects mismatches with HTTP 400 invalid_payload).
+    """
+    oai = _get_agent_openai_client(client, config, agent_name)
+    response = oai.responses.create(
+        model=config.foundry_model_deployment,
+        input=prompt,
     )
-    run = client.runs.create_and_process(
-        thread_id=thread.id, agent_id=agent_id
-    )
-    if getattr(run, "status", "") == "failed":
-        raise RuntimeError(f"run failed: {getattr(run, 'last_error', '')}")
-    msgs = list(client.messages.list(thread_id=thread.id))
-    for m in msgs:
-        if getattr(m, "role", "") == "assistant":
-            parts = getattr(m, "content", []) or []
-            text_parts = []
-            for p in parts:
-                t = getattr(p, "text", None)
-                if t is not None:
-                    text_parts.append(getattr(t, "value", str(t)))
-            if text_parts:
-                return "\n".join(text_parts)
-    return ""
+    text = getattr(response, "output_text", None)
+    if text:
+        return text
+    # Fallback: walk the structured output if output_text helper is unset.
+    parts: list[str] = []
+    for item in getattr(response, "output", []) or []:
+        for c in getattr(item, "content", []) or []:
+            t = getattr(c, "text", None)
+            if t is None:
+                continue
+            parts.append(getattr(t, "value", str(t)))
+    return "\n".join(parts)
 
 
 def _parse_findings(raw: str) -> list[dict]:
@@ -229,23 +218,26 @@ def _parse_findings(raw: str) -> list[dict]:
 
 
 def build_project_client(config: Config) -> Any:
-    """Construct an AgentsClient (runtime threads/messages/runs) with DefaultAzureCredential.
+    """Construct an AIProjectClient (Foundry v2 runtime) with DefaultAzureCredential.
 
-    Name retained for backward compatibility with the orchestrator. The returned
-    client is an ``azure.ai.agents.AgentsClient`` — the runtime surface in the
-    Foundry v2 SDK split.
+    ``allow_preview=True`` is required for ``get_openai_client(agent_name=...)``,
+    which scopes the OpenAI client to the agent's Responses API endpoint.
+    Foundry v2 hosted prompt agents are invoked via this path; the legacy
+    ``azure-ai-agents`` SDK's threads/messages/runs surface is for ``asst_xxx``
+    classic Assistants only and does not work here.
     """
     config.require_runtime()
     try:
-        from azure.ai.agents import AgentsClient
+        from azure.ai.projects import AIProjectClient
     except ImportError as e:  # pragma: no cover
         raise AgentInvocationError(
             "ValidateArbAgent",
-            "azure-ai-agents not installed. `pip install -r requirements.txt`",
+            "azure-ai-projects not installed. `pip install -r requirements.txt`",
         ) from e
-    return AgentsClient(
+    return AIProjectClient(
         endpoint=config.foundry_project_endpoint,
         credential=DefaultAzureCredential(),
+        allow_preview=True,
     )
 
 

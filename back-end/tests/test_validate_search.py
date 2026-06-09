@@ -3,6 +3,9 @@
 These tests monkeypatch ``search.query.search_policies`` and the agent runtime
 client so they exercise the new ``_retrieve_for_section`` → prompt-assembly path
 without any Azure calls.
+
+Runtime path is the Foundry v2 Responses API (issue #55):
+``project.get_openai_client(agent_name=...).responses.create(model=..., input=...)``.
 """
 
 from __future__ import annotations
@@ -17,63 +20,45 @@ from agents import validate_agent as va
 from agents.config import Config
 
 
-class _FakeMessage:
-    def __init__(self, role: str, text: str):
-        self.role = role
-
-        class _T:
-            def __init__(self, v: str):
-                self.value = v
-
-        class _P:
-            def __init__(self, v: str):
-                self.text = _T(v)
-
-        self.content = [_P(text)]
+class _FakeResponse:
+    def __init__(self, text: str):
+        self.output_text = text
 
 
-class _FakeMessagesOp:
+class _FakeResponsesOp:
     def __init__(self, capture: dict):
         self._capture = capture
         self._reply = capture.get("reply", "[]")
 
-    def create(self, *, thread_id: str, role: str, content: str) -> None:
-        self._capture["last_user_prompt"] = content
-
-    def list(self, *, thread_id: str):
-        return [_FakeMessage("assistant", self._reply)]
-
-
-class _FakeThreadsOp:
-    def create(self):
-        class _T:
-            id = "thread-1"
-        return _T()
+    def create(self, *, model: str, input: str, **kwargs: Any) -> _FakeResponse:
+        self._capture["last_user_prompt"] = input
+        self._capture["last_model"] = model
+        return _FakeResponse(self._reply)
 
 
-class _FakeRunsOp:
-    def create_and_process(self, *, thread_id: str, agent_id: str):
-        class _R:
-            status = "completed"
-        return _R()
+class _FakeOpenAIClient:
+    def __init__(self, capture: dict):
+        self.responses = _FakeResponsesOp(capture)
 
 
-class _FakeAgentsClient:
-    """Minimal stand-in for azure.ai.agents.AgentsClient."""
+class _FakeProjectClient:
+    """Minimal stand-in for azure.ai.projects.AIProjectClient."""
 
     def __init__(self, reply: str = "[]"):
         self._capture: dict = {"reply": reply}
-        self.threads = _FakeThreadsOp()
-        self.messages = _FakeMessagesOp(self._capture)
-        self.runs = _FakeRunsOp()
+        self._oai = _FakeOpenAIClient(self._capture)
+
+    def get_openai_client(self, *, agent_name: str) -> _FakeOpenAIClient:
+        self._capture["last_agent_name"] = agent_name
+        return self._oai
 
     @property
     def last_user_prompt(self) -> str:
         return self._capture.get("last_user_prompt", "")
 
-
-def _patch_agent_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(va, "_resolve_agent_id", lambda name, cfg: "agent-id-1")
+    @property
+    def last_model(self) -> str:
+        return self._capture.get("last_model", "")
 
 
 def _make_cfg() -> Config:
@@ -83,8 +68,16 @@ def _make_cfg() -> Config:
     return cfg
 
 
+@pytest.fixture(autouse=True)
+def _reset_oai_cache():
+    # Each test starts with an empty OpenAI client cache so the fake client
+    # supplied via the ``client=`` arg is actually consulted.
+    va._OAI_CLIENT_CACHE.clear()
+    yield
+    va._OAI_CLIENT_CACHE.clear()
+
+
 def test_prompt_contains_retrieved_policy_headers(monkeypatch: pytest.MonkeyPatch):
-    _patch_agent_id(monkeypatch)
     hits = [
         {"header": "Network Segmentation", "category": "Network",
          "content": "Use NSGs.", "@rerank": 3.21},
@@ -94,7 +87,7 @@ def test_prompt_contains_retrieved_policy_headers(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(va, "_retrieve_for_section",
                         lambda text, category, top_k=8: hits)
 
-    fake = _FakeAgentsClient(reply="[]")
+    fake = _FakeProjectClient(reply="[]")
     arb = {"Network Requirements": "All workloads must run in a hub-spoke VNet."}
     out = asyncio.run(va.validate_arb_sections(arb, _make_cfg(), fake))
 
@@ -104,13 +97,13 @@ def test_prompt_contains_retrieved_policy_headers(monkeypatch: pytest.MonkeyPatc
     assert "Network Segmentation" in prompt
     assert "Private Endpoints" in prompt
     assert "Score: 3.2100" in prompt
+    assert fake.last_model == "gpt-test"
 
 
 def test_empty_retrieval_renders_none_block(monkeypatch: pytest.MonkeyPatch):
-    _patch_agent_id(monkeypatch)
     monkeypatch.setattr(va, "_retrieve_for_section",
                         lambda text, category, top_k=8: [])
-    fake = _FakeAgentsClient(reply="[]")
+    fake = _FakeProjectClient(reply="[]")
     arb = {"Network Requirements": "Routing through corporate firewall."}
     out = asyncio.run(va.validate_arb_sections(arb, _make_cfg(), fake))
 
@@ -121,18 +114,14 @@ def test_empty_retrieval_renders_none_block(monkeypatch: pytest.MonkeyPatch):
 def test_search_failure_records_error_finding_and_skips_agent(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    _patch_agent_id(monkeypatch)
-
     def _boom(text, category, top_k=8):
         raise RuntimeError("AI Search 503")
 
     monkeypatch.setattr(va, "_retrieve_for_section", _boom)
-    fake = _FakeAgentsClient(reply="[]")
+    fake = _FakeProjectClient(reply="[]")
     arb = {"Network Requirements": "All workloads must run in a hub-spoke VNet."}
     out = asyncio.run(va.validate_arb_sections(arb, _make_cfg(), fake))
 
-    # The orchestrator records a deterministic finding for the failed retrieval
-    # and does NOT call the agent for that (section, category) pair.
     assert len(out) == 1
     assert out[0]["Type"] == "Error"
     assert out[0]["Issue"] == "search_failed"
@@ -143,8 +132,6 @@ def test_search_failure_records_error_finding_and_skips_agent(
 def test_agent_findings_are_merged_with_search_errors(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    _patch_agent_id(monkeypatch)
-
     # First call succeeds (returns one finding), second call's retrieval fails.
     calls: dict[str, int] = {"n": 0}
 
@@ -160,7 +147,7 @@ def test_agent_findings_are_merged_with_search_errors(
         "Type": "Violation", "Issue": "x", "Description": "y",
         "Principles": "Policy A", "Mandatory": True, "Category": "Storage and Data",
     }])
-    fake = _FakeAgentsClient(reply=agent_finding)
+    fake = _FakeProjectClient(reply=agent_finding)
 
     # Storage Requirements has TWO categories → fans out two retrievals.
     arb = {"Storage Requirements": "Use S3 for blob storage."}

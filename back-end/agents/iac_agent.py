@@ -85,7 +85,7 @@ async def generate_iac(
         return []
     prompt = f"{SYSTEM_PROMPT}\n\n[Content]\n{content}\n"
     try:
-        raw = await _call_agent(cli, cfg.iac_agent_name, prompt)
+        raw = await _call_agent(cli, cfg.iac_agent_name, prompt, cfg)
     except AgentInvocationError:
         raise
     return _parse_scripts(raw)
