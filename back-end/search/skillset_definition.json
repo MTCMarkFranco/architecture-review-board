@@ -1,0 +1,85 @@
+{
+  "name": "arb-policies-skillset",
+  "description": "Pull-mode pipeline for arb-policies: crack + chunk via Content Understanding, categorize each chunk via Azure OpenAI chat completion, embed via Azure OpenAI embeddings. Output is projected into the existing arb-policies index, one chunk per document.",
+  "skills": [
+    {
+      "@odata.type": "#Microsoft.Skills.Util.ContentUnderstandingSkill",
+      "name": "crack-and-chunk",
+      "description": "Content Understanding — document cracking, semantic chunking, and Markdown extraction.",
+      "context": "/document",
+      "inputs": [
+        { "name": "file_data", "source": "/document/file_data" }
+      ],
+      "outputs": [
+        { "name": "chunks", "targetName": "chunks" }
+      ],
+      "outputFormat": "markdown",
+      "chunkingProperties": {
+        "unit": "characters",
+        "maximumLength": 3500,
+        "overlapLength": 200
+      }
+    },
+    {
+      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIChatCompletionSkill",
+      "name": "categorize-chunk",
+      "description": "Assign each chunk a canonical PolicyCategory. Prompt is rendered from agents.categories.CATEGORIZE_SYSTEM_PROMPT; the build_indexer.py script substitutes the prompt at deploy time so the on-the-wire skillset stays byte-stable.",
+      "context": "/document/chunks/*",
+      "uri": "{{FOUNDRY_ENDPOINT}}openai/deployments/{{FOUNDRY_MODEL_DEPLOYMENT}}/chat/completions?api-version=2024-10-21",
+      "authIdentity": null,
+      "timeout": "PT60S",
+      "inputs": [
+        { "name": "systemMessage", "source": "='{{CATEGORIZE_SYSTEM_PROMPT}}'" },
+        { "name": "userMessage", "source": "/document/chunks/*/content" }
+      ],
+      "outputs": [
+        { "name": "response", "targetName": "category_raw" }
+      ]
+    },
+    {
+      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
+      "name": "embed-chunk",
+      "description": "Vectorize each chunk via the Foundry embeddings deployment. dimensions=1536 must match the existing index schema.",
+      "context": "/document/chunks/*",
+      "resourceUri": "{{FOUNDRY_ENDPOINT}}",
+      "deploymentId": "{{FOUNDRY_EMBEDDINGS_DEPLOYMENT}}",
+      "modelName": "text-embedding-3-large",
+      "dimensions": 1536,
+      "authIdentity": null,
+      "inputs": [
+        { "name": "text", "source": "/document/chunks/*/content" }
+      ],
+      "outputs": [
+        { "name": "embedding", "targetName": "contentVector" }
+      ]
+    }
+  ],
+  "indexProjections": {
+    "selectors": [
+      {
+        "targetIndexName": "{{AZURE_SEARCH_INDEX}}",
+        "parentKeyFieldName": "source_doc_key",
+        "sourceContext": "/document/chunks/*",
+        "mappings": [
+          { "name": "header",        "source": "/document/chunks/*/header" },
+          { "name": "content",       "source": "/document/chunks/*/content" },
+          { "name": "category",      "source": "/document/chunks/*/category_raw" },
+          { "name": "contentVector", "source": "/document/chunks/*/contentVector" },
+          { "name": "chunk_index",   "source": "/document/chunks/*/ordinal" },
+          { "name": "source_doc",    "source": "/document/metadata_storage_name" }
+        ]
+      }
+    ],
+    "parameters": {
+      "projectionMode": "skipIndexingParentDocuments"
+    }
+  },
+  "cognitiveServices": {
+    "@odata.type": "#Microsoft.Azure.Search.AIServicesByIdentity",
+    "subdomainUrl": "{{FOUNDRY_CU_ENDPOINT}}",
+    "identity": {
+      "@odata.type": "#Microsoft.Azure.Search.DataSystemAssignedIdentity"
+    },
+    "description": "Billing target for Content Understanding (CU) and chat-completion skills. Defaults to FOUNDRY_ENDPOINT (foundry-cc-canada). If CU is not supported in your Foundry region, set FOUNDRY_CU_ENDPOINT to an AI Services account in a CU-supported region (Sweden Central, East US 2, West US 3)."
+  }
+}

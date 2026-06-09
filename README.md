@@ -1,12 +1,14 @@
 # Architecture Review Board — ARB Validator & IaC Generator
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Microsoft-Foundry_IQ-0078D4?style=for-the-badge&logo=microsoft&logoColor=white" alt="Foundry IQ" />
+  <img src="https://img.shields.io/badge/Microsoft-Foundry_v2-0078D4?style=for-the-badge&logo=microsoft&logoColor=white" alt="Foundry v2" />
   <img src="https://img.shields.io/badge/Powered_by-Azure_AI_Search-5C2D91?style=for-the-badge&logo=microsoftazure&logoColor=white" alt="Azure AI Search" />
-  <img src="https://img.shields.io/badge/Azure-OpenAI-0078D4?style=for-the-badge&logo=openai&logoColor=white" alt="Azure OpenAI" />
+  <img src="https://img.shields.io/badge/Auth-DefaultAzureCredential-2F855A?style=for-the-badge&logo=microsoftazure&logoColor=white" alt="DefaultAzureCredential" />
 </p>
 
-An AI-powered tool that validates Architecture Solution Design (ARB) documents against organizational cloud and security policies, and generates starter Infrastructure-as-Code (Terraform) scripts from the design content.
+AI-powered tool that validates Architecture Solution Design (ASD) documents against organizational cloud and security policies, and generates starter Infrastructure-as-Code (Terraform) scripts from the design content.
+
+Built on **Microsoft Foundry v2 hosted prompt agents** invoked via the **Responses API**, with retrieval driven by the Python orchestrator against an **Azure AI Search** index (hybrid + semantic ranker). Policy ingestion uses an **Azure AI Search pull-mode pipeline** (blob → data source → skillset → index projections) where Content Understanding cracks + chunks documents, an Azure OpenAI chat skill categorizes each chunk against the canonical `PolicyCategory` taxonomy, and an Azure OpenAI embedding skill vectorizes them — all server-side, no Python push code. **All Azure access uses identity-based auth — no API keys.** An adaptive credential picker uses `AzureCliCredential` when running locally (skipping the IMDS probe to `169.254.169.254`) and `DefaultAzureCredential` inside Azure-hosted runtimes (detected via `IDENTITY_ENDPOINT` / `MSI_ENDPOINT` / `WEBSITE_INSTANCE_ID`).
 
 ## UI Preview
 
@@ -14,342 +16,288 @@ An AI-powered tool that validates Architecture Solution Design (ARB) documents a
   <img src="docs/images/ui-screenshot.png" alt="Architecture Review Board UI" width="900" />
 </p>
 
-The application features Microsoft Fluent Design styling:
-
-- **Header** — Microsoft four-square logo with **Foundry IQ** branding (left), **"Powered by Microsoft AI Search"** badge with gradient search icon (right)
-- **Hero banner** — Blue gradient (`#0078D4` → `#0063B1`) with title and description
-- **Card-based layout** — White rounded cards on a neutral gray background for upload, validation results, and IaC output
-- **Buttons** — Microsoft Blue primary actions, Microsoft Purple for IaC generation
-- **Footer** — "Architecture Review Board · Powered by Microsoft Azure"
-
-## Overview
-
-This application has two main capabilities:
-
-1. **ARB Validation** — Upload a PDF architecture design document. The system parses it, maps each section to relevant policy categories, retrieves matching policies from Azure AI Search, and uses Azure OpenAI (via Semantic Kernel) to identify violations, deviations, and suggestions against organizational standards.
-
-2. **IaC Generation** — From the same uploaded ARB PDF, the system extracts infrastructure-relevant sections and uses Azure OpenAI to generate starter Terraform scripts for the described AWS components.
-
 ## Architecture
 
 ```
-┌──────────────────────┐        HTTP (REST)        ┌──────────────────────────────┐
-│   React Front-End    │  ◄──────────────────────►  │     Flask Back-End (API)      │
-│   (Vite + Tailwind)  │                            │                              │
-│                      │                            │  ┌────────────────────────┐   │
-│  • File Upload       │                            │  │  PDF Parsing (PyMuPDF) │   │
-│  • Validation Table  │                            │  └────────────────────────┘   │
-│  • IaC Code Display  │                            │  ┌────────────────────────┐   │
-│                      │                            │  │  Azure AI Search       │   │
-└──────────────────────┘                            │  │  (Policy Retrieval)    │   │
-                                                    │  └────────────────────────┘   │
-                                                    │  ┌────────────────────────┐   │
-                                                    │  │  Azure OpenAI          │   │
-                                                    │  │  (Semantic Kernel)     │   │
-                                                    │  └────────────────────────┘   │
-                                                    └──────────────────────────────┘
+┌──────────────────────┐        HTTP (REST)         ┌─────────────────────────────────────┐
+│   React Front-End    │  ◄──────────────────────►  │       Flask Back-End (API)           │
+│   (Vite + Tailwind)  │                            │                                      │
+│                      │                            │  ┌────────────────────────────────┐  │
+│  • File Upload       │                            │  │ docx/pdf parsing               │  │
+│  • Validation Table  │                            │  └────────────────────────────────┘  │
+│  • IaC Code Display  │                            │  ┌────────────────────────────────┐  │
+└──────────────────────┘                            │  │ Orchestrator — fan-out         │  │
+                                                    │  │ per (section, category)        │  │
+                                                    │  └────────────────────────────────┘  │
+                                                    │  ┌────────────────────────────────┐  │
+                                                    │  │ search/query.py — hybrid +     │  │
+                                                    │  │ semantic Azure AI Search       │  │
+                                                    │  └────────────────────────────────┘  │
+                                                    │  ┌────────────────────────────────┐  │
+                                                    │  │ Foundry v2 hosted agents       │  │
+                                                    │  │ ValidateArbAgent / IacAgent    │  │
+                                                    │  │ via Responses API              │  │
+                                                    │  └────────────────────────────────┘  │
+                                                    └─────────────────────────────────────┘
+
+                       Ingest pipeline (pull-mode, server-side)
+                       ──────────────────────────────────────────
+   ┌────────────┐    ┌────────────┐    ┌──────────────────────────────────────┐
+   │ Blob       │ ─► │ Data       │ ─► │ Skillset:                            │
+   │ container  │    │ source     │    │ 1. Content Understanding (chunk)     │
+   │            │    │ (Managed   │    │ 2. AOAI chat (categorize)            │
+   │            │    │  Identity) │    │ 3. AOAI embedding (vectorize)        │
+   └────────────┘    └────────────┘    └──────────────────────────────────────┘
+                                                       │
+                                                       ▼
+                                       ┌──────────────────────────────────────┐
+                                       │ Indexer + index projections          │
+                                       │ → one chunk per index doc into       │
+                                       │   the arb-policies index             │
+                                       └──────────────────────────────────────┘
 ```
 
-## Project Structure
+### Why orchestrator-driven retrieval at validate time?
+
+`ASD_SECTION_CATEGORIES` in [`back-end/agents/categories.py`](back-end/agents/categories.py) routes each ASD section to one or more policy categories. The orchestrator retrieves the matching policies and injects them into the prompt as a `[Retrieved Policies]` block — the agent reasons only over what it's given. See [`prompt-contracts/AGENT-SEARCH-TOOL.md`](prompt-contracts/AGENT-SEARCH-TOOL.md) for the design rationale.
+
+### Why pull-mode for ingest?
+
+Push-mode used to live in `search/build_index.py` and did chunking + categorization + embeddings in Python. Pull-mode moves all of that into the Search skillset where it's first-class, idempotent, observable, and cheaper at scale. The same canonical `PolicyCategory` enum is used by the AOAI categorize skill (at ingest time) and the orchestrator (at query time), so there is no taxonomy drift. See [`prompt-contracts/PULL-INDEXER-PIPELINE.md`](prompt-contracts/PULL-INDEXER-PIPELINE.md).
+
+## Project structure
 
 ```
 architecture-review-board/
+├── .env                                   # repo-root env (FOUNDRY_LOCATION, MODEL, endpoints, storage…)
+├── README.md
 ├── back-end/
-│   ├── app.py                          # Flask API server (endpoints: /validatearb, /geniac)
-│   ├── requirements.txt                # Python dependencies
-│   ├── azure_local/
-│   │   ├── openai_local.py             # Azure OpenAI integration via Semantic Kernel
-│   │   ├── search_service.py           # Azure AI Search index management & querying
-│   │   └── example_response.json       # Sample validation response for reference
-│   └── file_processing/
-│       ├── parsing.py                  # PDF parsing logic (summary, requirements, tables)
-│       └── data/
-│           ├── policies.json           # Cloud/security policy definitions
-│           └── arb.json                # Cached parsed ARB output (generated at runtime)
-├── front-end/
-│   ├── index.html                      # HTML entry point
-│   ├── package.json                    # Node.js dependencies
-│   ├── vite.config.ts                  # Vite build configuration
-│   ├── tailwind.config.js              # Tailwind CSS theme (Microsoft Fluent colors)
-│   ├── tsconfig.json                   # TypeScript configuration
-│   └── src/
-│       ├── App.tsx                     # Main application component (header, hero, layout)
-│       ├── main.tsx                    # React entry point
-│       ├── index.css                   # Global styles (Tailwind directives, Segoe UI)
-│       ├── components/
-│       │   ├── FileUpload.tsx          # File upload + action buttons component
-│       │   ├── ValidationTable.tsx     # Validation results table component
-│       │   ├── IaCResults.tsx          # IaC code display with syntax highlighting
-│       │   ├── MicrosoftLogo.tsx       # Microsoft four-square logo (inline SVG)
-│       │   └── AiSearchBadge.tsx       # "Powered by Microsoft AI Search" badge
-│       ├── data/
-│       │   └── types.ts               # TypeScript type definitions
-│       └── assets/                     # Static assets
-└── README.md
+│   ├── app.py                             # Flask API (/validatearb, /geniac)
+│   ├── requirements.txt
+│   ├── agents/
+│   │   ├── orchestrator.py                # ArbWorkflow (validate + iac)
+│   │   ├── validate_agent.py              # Responses-API client + retrieval
+│   │   ├── iac_agent.py                   # IaC generator client
+│   │   ├── categories.py                  # canonical PolicyCategory taxonomy
+│   │   ├── config.py                      # env-driven Config
+│   │   ├── resilience.py                  # retry + circuit breaker
+│   │   └── errors.py
+│   ├── search/
+│   │   ├── build_indexer.py               # provisions + runs the pull-mode pipeline
+│   │   ├── skillset_definition.json       # CU + AOAI categorize + AOAI embed + projections
+│   │   ├── indexer_definition.json
+│   │   ├── datasource_definition.json
+│   │   ├── index_schema.json
+│   │   ├── query.py                       # hybrid + semantic search wrapper
+│   │   └── categorize.py                  # legacy keyword fallback only
+│   ├── infra/
+│   │   ├── provision.py                   # Foundry + Search; idempotent
+│   │   ├── provision_search_pipeline.py   # storage account + container + RBAC
+│   │   └── create_agents.py               # creates/updates hosted prompt agents
+│   ├── file_processing/
+│   │   ├── parsing.py                     # docx + pdf parsing
+│   │   ├── build_azure_policies.py        # builds the sample policy docx
+│   │   └── data/
+│   │       ├── azure_policies.docx        # uploaded to blob; indexed by the pull pipeline
+│   │       └── sample_asd.docx            # test input for the validator
+│   └── tests/                             # pytest suite (mark integration for live tests)
+├── front-end/                             # React 18 + TypeScript + Vite + Tailwind
+├── scripts/                               # one-off helpers (pdf_to_docx, etc.)
+├── prompt-contracts/                      # implementation specs (one per feature)
+└── docs/
 ```
 
 ## Prerequisites
 
-### Azure Services
-
-The following Azure resources must be provisioned before running the application:
-
-| Service | Purpose | Key Configuration |
+| Tool | Version | Notes |
 |---|---|---|
-| **Azure OpenAI** | LLM for validation & IaC generation | GPT model deployment (e.g., `gpt-4`) |
-| **Azure OpenAI — Embeddings** | Vectorizing policy content for search | `text-embedding-ada-002` deployment |
-| **Azure AI Search** | Storing and retrieving policy documents | Index named `policy_index` |
+| Python | 3.11+ | 3.14 tested |
+| Node.js | 18+ | for the front-end |
+| Azure CLI | latest | `az login` before provisioning |
+| Azure subscription | — | `Cognitive Services Contributor` on the RG; `Search Service Contributor` + `Search Index Data Contributor` on the AI Search service; `Storage Account Contributor` on the storage account RG |
 
-### Environment Variables
+Supported regions for Foundry v2 hosted prompt agents (gpt-5 family): `eastus2`, `swedencentral`, `westus3`, `switzerlandnorth`, `canadaeast`, `uksouth`, and others — see [Foundry model & region support](https://learn.microsoft.com/azure/ai-foundry/agents/concepts/model-region-support). **Canada Central works at the API level** but the Foundry portal will surface an "unsupported region" warning for the new agents view; toggle to the classic portal to see them.
 
-Create a `.env` file in the `back-end/` directory with the following variables:
+**Content Understanding (the CU skill) is regional too.** If your Foundry region doesn't support CU, set `FOUNDRY_CU_ENDPOINT` in `.env` to an AI Services account in a CU-supported region (Sweden Central, East US 2, West US 3 are reliable). The skillset will route CU calls there for billing while keeping chat + embeddings on the Foundry account.
+
+## One-time setup
+
+### 1. Clone + install
+
+```powershell
+git clone https://github.com/MTCMarkFranco/architecture-review-board.git
+cd architecture-review-board
+cd back-end
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+cd ..\front-end
+npm install
+cd ..
+```
+
+### 2. Create the repo-root `.env`
 
 ```env
-# Azure OpenAI
-AZURE_OPENAI_DEPLOYMENT_NAME=<your-deployment-name>
-AZURE_OPENAI_ENDPOINT=<https://your-openai-resource.openai.azure.com/>
-AZURE_OPENAI_API_KEY=<your-openai-api-key>
+# Required to pick a Foundry region + model
+FOUNDRY_LOCATION=canadacentral
+FOUNDRY_MODEL=gpt-5.3-chat
 
-# Azure AI Search
-AZURE_SEARCH_SERVICE_ENDPOINT=<https://your-search-service.search.windows.net>
-AZURE_SEARCH_API_KEY=<your-search-api-key>
+# Subscription / tenant (az login takes care of credentials)
+AZURE_SUBSCRIPTION_ID=<your-sub-id>
+AZURE_TENANT_ID=<your-tenant-id>
+
+# The rest are filled in automatically by provision.py — copy from
+# back-end/.env.example after the first provision run:
+# FOUNDRY_RESOURCE_GROUP=...
+# FOUNDRY_ACCOUNT_NAME=...
+# FOUNDRY_ENDPOINT=...
+# FOUNDRY_PROJECT_NAME=...
+# FOUNDRY_PROJECT_ENDPOINT=...
+# FOUNDRY_MODEL_DEPLOYMENT=...
+# FOUNDRY_EMBEDDINGS_DEPLOYMENT=...
+# AZURE_SEARCH_ENDPOINT=...
+# STORAGE_ACCOUNT_RESOURCE_ID=...
+# STORAGE_CONTAINER=arb-policies-source
+# Optional — set only if CU is unavailable in your Foundry region:
+# FOUNDRY_CU_ENDPOINT=https://<aiservices-in-cu-region>.cognitiveservices.azure.com/
 ```
 
-### Software Requirements
+`provision.py`, `app.py`, and `agents/config.py` all auto-load this file via `python-dotenv` — you do **not** need to export env vars by hand.
 
-- **Python 3.10+**
-- **Node.js 18+** and **npm**
+### 3. Provision Azure resources
 
-## Getting Started
+```powershell
+az login
+cd back-end
+python infra\provision.py
+```
 
-### 1. Back-End Setup
+Idempotent. Creates/reuses an AI Services account, chat + embeddings deployments, a Foundry v2 project, the Azure AI Search service, **and the storage account + container + RBAC needed by the pull pipeline**. RBAC roles are assigned to your signed-in user. Outputs to `back-end/.env.example` — copy the new values into the repo-root `.env`.
 
-```bash
+### 4. Provision the pull-mode indexer + run it
+
+```powershell
 cd back-end
 
-# Create and activate a virtual environment
-python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS/Linux
+# (a) Upload the source docx into the blob container — one-time per source doc:
+az storage blob upload `
+  --account-name <storage-account-from-env-example> `
+  --container-name arb-policies-source `
+  --name azure_policies.docx `
+  --file file_processing\data\azure_policies.docx `
+  --auth-mode login `
+  --overwrite
 
-# Install dependencies
-pip install -r requirements.txt
+# (b) Create the data source + skillset + indexer and trigger a run:
+python -m search.build_indexer --run
 ```
 
-### 2. Build the Azure AI Search Index
+`build_indexer.py` is idempotent — re-running creates-or-updates each of the three Search resources. Pass `--purge` to delete all existing index documents before ingesting (use when replacing the source doc so stale chunks are removed). Pass `--status` to view the indexer's last-run summary without re-running.
 
-Before the application can validate documents, you must create the search index and populate it with your organization's policies. This is a **one-time setup step**.
+The pull pipeline:
+1. **Cracks + chunks** each blob via the Content Understanding skill (`maximumLength=3500`, `overlapLength=200`).
+2. **Categorizes** each chunk via an Azure OpenAI chat completion skill using `agents.categories.CATEGORIZE_SYSTEM_PROMPT`. The taxonomy is the canonical `PolicyCategory` enum — same one used by validate and IaC.
+3. **Embeds** each chunk via `text-embedding-3-large` (1536 dims to match the index schema).
+4. **Projects** each chunk into its own `arb-policies` index document.
 
-#### Step 2a — Prepare Your Policies
+⚠️ **Cost note:** CU is billed per page; AOAI chat per token (categorize prompt is ~150 tokens output max); embeddings per token. For one ~30-section policy docx this is well under $1 per full re-ingest.
 
-Policies are stored in `back-end/file_processing/data/policies.json`. Each entry has this structure:
+### 5. Create the hosted agents
 
-```json
-{
-  "header": "Security by design",
-  "content": "Embed cybersecurity considerations early in designing all features...",
-  "category": "Security and Governance",
-  "mandatory": true
-}
-```
-
-| Field | Description |
-|---|---|
-| `header` | Policy name — used as the document ID in the search index (spaces replaced with underscores) |
-| `content` | Full policy text — this gets vectorized via `text-embedding-ada-002` for semantic search |
-| `category` | Policy category used for filtered retrieval. Must match one of the ASD section mappings (see `asd_mappings` in `openai_local.py`): `Operational Excellence`, `Portability and Modularization`, `Reliability`, `Support`, `Security and Governance`, `Performance and Efficiency`, `Cost Optimization` |
-| `mandatory` | `true` if violations should be flagged as mandatory, `false` for advisory |
-
-Edit this file to add, remove, or update policies as needed.
-
-#### Step 2b — Create the Index and Upload
-
-1. Open `back-end/app.py` and **uncomment** the two index-setup lines at the bottom:
-
-   ```python
-   if __name__ == '__main__':
-       index = 'policy_index'
-       policies_path = './file_processing/data/policies.json'
-
-       create_policy_index(index)        # ← uncomment this
-       upload_policies(index, policies_path)  # ← uncomment this
-
-       app.run(debug=True)
-   ```
-
-2. Ensure your `.env` file is configured with valid Azure AI Search and Azure OpenAI credentials.
-
-3. Run the back-end once:
-
-   ```bash
-   python app.py
-   ```
-
-   This will:
-   - **Create** an Azure AI Search index named `policy_index` with the following fields:
-
-     | Field | Type | Purpose |
-     |---|---|---|
-     | `id` | String (key) | Policy header with spaces replaced by underscores |
-     | `content` | Searchable String | Full policy text |
-     | `category` | Filterable String | Policy category for filtered queries |
-     | `mandatory` | Filterable Boolean | Whether violations are mandatory |
-     | `vector_data` | Collection(Single) | 1536-dimension embedding vector |
-
-   - Configure **HNSW vector search** with profile `uploaded-document-vector-config`
-   - Configure **semantic search** with content-based ranking
-   - **Upload** each policy document with its embedding generated via Azure OpenAI `text-embedding-ada-002`
-   - Print `document upload succeeded` for each policy uploaded
-
-4. **Re-comment** the two lines after the index is populated to avoid re-creating on every restart:
-
-   ```python
-   # create_policy_index(index)
-   # upload_policies(index, policies_path)
-   ```
-
-5. Verify the index in the [Azure Portal](https://portal.azure.com) → your AI Search resource → **Indexes** → `policy_index`. You should see all your policies listed as documents.
-
-#### Step 2c — Updating Policies Later
-
-To add or update policies after initial setup:
-
-1. Edit `policies.json` with new/changed entries.
-2. Uncomment only `upload_policies(index, policies_path)` (the index already exists).
-3. Run `python app.py` once, then re-comment the line.
-
-> **Note:** `upload_policies` uses `upload_documents` which performs upserts — existing documents with the same `id` are overwritten.
-
-### 3. Start the Back-End
-
-```bash
+```powershell
 cd back-end
+python -m infra.create_agents
+```
+
+Creates `ValidateArbAgent` (prompt only — no search tool; orchestrator handles retrieval) and `IacGeneratorAgent` (code interpreter). Bumps a new version on subsequent runs.
+
+## Daily run
+
+**Terminal 1 — backend:**
+```powershell
+cd back-end
+.\venv\Scripts\activate
 python app.py
 ```
+Listens on `http://127.0.0.1:5000`.
 
-The API server starts on `http://127.0.0.1:5000`.
-
-### 4. Front-End Setup
-
-```bash
+**Terminal 2 — frontend:**
+```powershell
 cd front-end
-
-# Install dependencies
-npm install
-
-# Start the development server
 npm run dev
 ```
+Opens `http://localhost:5173`. Upload an ARB doc → the UI hits `/validatearb` and `/geniac`.
 
-The front-end starts on `http://localhost:5173` (default Vite port).
+## API endpoints
 
-## API Endpoints
-
-| Method | Endpoint | Description | Request Body |
+| Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/validatearb` | Validate an ARB PDF against policies | `multipart/form-data` with `file` field (PDF) |
-| `POST` | `/geniac` | Generate Terraform IaC from an ARB PDF | `multipart/form-data` with `file` field (PDF) |
+| POST | `/validatearb` | `multipart/form-data` field `file` (`.pdf` or `.docx`) | JSON array of finding objects |
+| POST | `/geniac` | same | JSON array of Terraform script strings |
 
-### Validation Response Schema
+### Finding schema
 
 ```json
 {
-  "Type": "Violation | Deviation | Suggestion",
+  "Type": "Violation | Deviation | Error",
   "Issue": "Brief issue title",
   "Description": "Detailed description",
-  "Principles": "Policy principle name",
-  "Mandatory": true
+  "Principles": "Policy header that was violated",
+  "Mandatory": true,
+  "Category": "Security and Governance"
 }
 ```
 
-### IaC Response
+`Category` is always one of the canonical `PolicyCategory` values (see `back-end/agents/categories.py`).
 
-Returns a JSON array of strings, each containing a Terraform script block.
+## Validation flow
 
-## How It Works
+1. Front-end POSTs the doc to `/validatearb`.
+2. `file_processing/parsing.py` extracts sections (Network, Storage, Security, etc.).
+3. `ArbWorkflow.validate` fans out (section × category) tasks driven by `ASD_SECTION_CATEGORIES`.
+4. For each pair the orchestrator calls `search/query.py:search_policies` (hybrid + semantic, category-filtered) and renders the hits into a `[Retrieved Policies]` prompt block.
+5. The prompt is sent to `ValidateArbAgent` through the Responses API (`project.get_openai_client(agent_name=...).responses.create(model=<deployment>, input=prompt)`).
+6. JSON findings are parsed, search-failure errors are merged in, and the combined list is returned to the front-end.
 
-### ARB Validation Flow
+## Testing
 
-1. User uploads a PDF architecture design document via the UI.
-2. The back-end parses the PDF using **PyMuPDF** (`fitz`), extracting content by section (Summary, Requirements, Solution, EC2 specs, etc.).
-3. Each section is mapped to one or more policy categories (e.g., Security & Governance, Reliability, Cost Optimization).
-4. For each category, relevant policies are retrieved from **Azure AI Search** using filtered queries on the `policy_index`.
-5. The section content + matching policies are sent to **Azure OpenAI** (via Semantic Kernel) with a prompt that instructs the model to identify violations, deviations, and suggestions.
-6. Results are aggregated and returned to the front-end as a JSON array.
+```powershell
+cd back-end
+pytest -q
+```
 
-### IaC Generation Flow
+Integration tests are marked `@pytest.mark.integration` and skip cleanly when the required env vars (`AZURE_SEARCH_ENDPOINT`, `FOUNDRY_ENDPOINT`, `STORAGE_ACCOUNT_RESOURCE_ID`) are missing.
 
-1. User uploads the same/any ARB PDF.
-2. Infrastructure-relevant sections are extracted (Introduction, Network, Storage, Database, EC2 specs, etc.).
-3. The combined content is sent to **Azure OpenAI** with a prompt that instructs the model to generate Terraform scripts for AWS components described in the document.
-4. Results are returned as a list of Terraform code blocks and displayed with syntax highlighting.
+## Prompt contracts
 
-## Deploying to Azure
+Implementation specs for each feature live in [`prompt-contracts/`](prompt-contracts/). They map 1:1 to GitHub issues and branches.
 
-### Option A: Azure App Service (Recommended for Quick Deployment)
-
-#### Back-End — Azure App Service (Python)
-
-1. Create an Azure App Service (Linux, Python 3.10+ runtime).
-2. Set all environment variables from the `.env` file in **Configuration > Application settings**.
-3. Set the startup command to:
-   ```
-   gunicorn --bind=0.0.0.0 --timeout 600 app:app
-   ```
-4. Add `gunicorn` to `requirements.txt`.
-5. Deploy via Azure CLI, VS Code Azure extension, or GitHub Actions:
-   ```bash
-   az webapp up --name <your-app-name> --resource-group <rg> --runtime "PYTHON:3.10"
-   ```
-
-#### Front-End — Azure Static Web Apps
-
-1. Update the API URL in `FileUpload.tsx` to point to your deployed back-end App Service URL instead of `http://127.0.0.1:5000`.
-2. Build the front-end:
-   ```bash
-   cd front-end
-   npm run build
-   ```
-3. Deploy the `dist/` folder to Azure Static Web Apps:
-   ```bash
-   az staticwebapp create --name <swa-name> --resource-group <rg> --source ./front-end --output-location dist
-   ```
-
-### Option B: Azure Container Apps
-
-1. Containerize both the back-end and front-end with Dockerfiles.
-2. Push images to **Azure Container Registry (ACR)**.
-3. Deploy to **Azure Container Apps** with environment variables configured.
-
-### Option C: Azure Kubernetes Service (AKS)
-
-For production-scale deployments, deploy containers to AKS with proper ingress, scaling, and monitoring.
-
-### Networking & Security Considerations
-
-- Configure **CORS** on the back-end to allow only the front-end domain.
-- Use **Azure Key Vault** to manage secrets instead of environment variables.
-- Place both services behind **Azure Front Door** or **Application Gateway** for TLS termination and WAF.
-- Enable **Managed Identity** for the App Service to access Azure OpenAI and AI Search without API keys.
-
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Front-End | React 18, TypeScript, Vite, Tailwind CSS (Microsoft Fluent theme) |
-| UI Branding | Microsoft Foundry IQ logo, AI Search badge (inline SVG components) |
-| Back-End | Python, Flask, Flask-CORS |
-| AI / LLM | Azure OpenAI (GPT), Semantic Kernel for Python |
-| Search | Azure AI Search (vector + keyword, HNSW, semantic ranking) |
-| PDF Parsing | PyMuPDF (fitz) |
-| IaC Display | react-syntax-highlighter (Prism, HCL) |
+| Front-end | React 18, TypeScript, Vite, Tailwind CSS |
+| Back-end | Python 3.11+, Flask, Flask-CORS |
+| Agents | Foundry v2 hosted prompt agents, Responses API |
+| Search | Azure AI Search — hybrid + semantic ranker, HNSW vectors, pull-mode indexer (Content Understanding + AOAI categorize + AOAI embed) |
+| Embeddings | `text-embedding-3-large` (Foundry deployment) |
+| Storage | Azure Blob Storage (StorageV2, LRS) — source policy documents |
+| Auth | `DefaultAzureCredential` end-to-end — no API keys (adaptive credential picker prefers `AzureCliCredential` locally to avoid the IMDS probe; falls back to `DefaultAzureCredential` inside Azure-hosted runtimes) |
+| Document parsing | PyMuPDF (PDF), python-docx |
+| Resilience | retry-with-backoff + circuit breaker (`agents/resilience.py`) |
 
-## Backlog
+## Roadmap
 
-- Convert from Semantic Kernel to MAF, using Hosted Agents in Foundry IQ
-- Convert from standard RAG search in AI Search to Agentic Search in AI Search
-- Include module to produce Terraform
+- [x] Migrate Semantic Kernel → Foundry v2 hosted agents
+- [x] Orchestrator-driven retrieval (was: built-in AI Search agent tool)
+- [x] `DefaultAzureCredential` everywhere
+- [x] Pull-mode indexer (CU + AOAI categorize + AOAI embed)
+- [x] Canonical `PolicyCategory` taxonomy
+- [ ] Tune `WORKFLOW_TIMEOUT_SECONDS` / fan-out concurrency for full-document runs
+- [ ] Promote prompt contracts into a release gate (CI check)
+- [ ] Wire OpenTelemetry → Agent 365 (see issue #60)
 
 ## License
 
-This project is for internal use. See your organization's licensing policy for details.
+Internal use. See your organization's licensing policy.

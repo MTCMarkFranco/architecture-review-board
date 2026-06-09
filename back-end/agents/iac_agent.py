@@ -8,22 +8,12 @@ import json
 import logging
 from typing import Any
 
+from .categories import IAC_SECTIONS
 from .config import Config
 from .errors import AgentInvocationError
 from .validate_agent import _call_agent, build_project_client
 
 logger = logging.getLogger(__name__)
-
-IAC_SECTIONS = [
-    "Introduction",
-    "Assumptions/Constraints/Recommendations",
-    "Interface Requirements",
-    "Network Requirements",
-    "Software Requirements",
-    "Storage Requirements",
-    "Database Requirements",
-    "EC2 Sizing/Specifications",
-]
 
 SYSTEM_PROMPT = (
     "You are an Infrastructure-as-Code assistant. Given the listed architecture "

@@ -391,6 +391,31 @@ def main() -> int:
             "FOUNDRY_EMBEDDINGS_DEPLOYMENT": embedding_dep,
             "AZURE_SEARCH_ENDPOINT": os.getenv("AZURE_SEARCH_ENDPOINT", ""),
         }
+
+        # Pull-mode pipeline support (#61). Provisions the storage account +
+        # container + RBAC needed by the arb-policies-blob data source.
+        # Failures here do not block the rest of provisioning — they emit a
+        # warning so users can re-run ``python -m infra.provision_search_pipeline``
+        # independently if needed (e.g. they want to set ARB_STORAGE_ACCOUNT_NAME
+        # first to use a friendlier name).
+        if not args.dry_run and values["AZURE_SEARCH_ENDPOINT"]:
+            try:
+                from infra.provision_search_pipeline import provision as provision_pipeline
+                pipeline = provision_pipeline(dry_run=False)
+                values["STORAGE_ACCOUNT_RESOURCE_ID"] = pipeline["storage_account_resource_id"]
+                values["STORAGE_CONTAINER"] = pipeline["storage_container"]
+            except Exception as e:  # noqa: BLE001
+                log.warning(
+                    "Pull-mode pipeline provisioning skipped (%s). Re-run "
+                    "`python -m infra.provision_search_pipeline` after fixing.",
+                    e,
+                )
+        elif not values["AZURE_SEARCH_ENDPOINT"]:
+            log.warning(
+                "AZURE_SEARCH_ENDPOINT not set — skipping pull-mode pipeline "
+                "provisioning. Set it and re-run `python -m infra.provision_search_pipeline`."
+            )
+
         write_env_example(values)
         LOG_FILE.write_text(json.dumps(values, indent=2), encoding="utf-8")
         log.info("Done. Summary written to %s", LOG_FILE)
