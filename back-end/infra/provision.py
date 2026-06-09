@@ -24,6 +24,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Load environment variables from a .env file at the repository root (one
+# level above back-end/) before reading any os.getenv() calls below. Existing
+# process env vars take precedence (override=False) so callers can still
+# override .env values inline (e.g. `$env:FOUNDRY_MODEL = "..."`).
+try:
+    from dotenv import load_dotenv
+
+    _REPO_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
+    if _REPO_ROOT_ENV.is_file():
+        load_dotenv(_REPO_ROOT_ENV, override=False)
+except ImportError:
+    pass
+
 # Resolve the az CLI executable once. On Windows the launcher is az.cmd; using
 # subprocess.run([...], shell=False) with a bare "az" raises FileNotFoundError
 # (WinError 2) because CreateProcess does not honour PATHEXT. shutil.which()
