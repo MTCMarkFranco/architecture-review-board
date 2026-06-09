@@ -78,6 +78,23 @@ def policies_from_json(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def policies_from_pdf(path: Path) -> list[dict]:
+    """Extract policy sections from a PDF using the shared header rule.
+
+    Delegates to :func:`file_processing.parsing.extract_policies` so the
+    PDF and DOCX paths share the exact same section-detection contract
+    (UPPERCASE, no 'INTERNAL', leading digit).
+    """
+    # Allow running this module either as a package (``python -m search.build_index``)
+    # or as a script from the back-end directory.
+    try:
+        from file_processing.parsing import extract_policies  # type: ignore
+    except ImportError:  # pragma: no cover
+        sys.path.insert(0, str(REPO_ROOT / "back-end"))
+        from file_processing.parsing import extract_policies  # type: ignore
+    return extract_policies(str(path))
+
+
 # -- Embeddings ------------------------------------------------------------
 
 def make_embedder(endpoint: str, deployment: str):
@@ -189,6 +206,23 @@ def create_or_update_index(endpoint: str, name: str) -> None:
     log.info("Index '%s' created/updated.", name)
 
 
+def purge_index_documents(endpoint: str, name: str) -> int:
+    """Delete every document currently in the index. Returns count deleted.
+
+    The index schema, vector profiles, and semantic config are untouched.
+    Use before re-ingesting a replacement policy document so stale chunks
+    from the previous source do not pollute search results.
+    """
+    from azure.search.documents import SearchClient
+    sc = SearchClient(endpoint=endpoint, index_name=name,
+                      credential=DefaultAzureCredential())
+    ids = [d["id"] for d in sc.search(search_text="*", select=["id"], top=10000)]
+    if not ids:
+        return 0
+    sc.delete_documents(documents=[{"id": i} for i in ids])
+    return len(ids)
+
+
 def ingest_documents(endpoint: str, name: str, policies: Iterable[dict],
                      source_doc: str, embed) -> int:
     from azure.search.documents import SearchClient
@@ -242,12 +276,19 @@ def main() -> int:
                         default=os.getenv("FOUNDRY_ENDPOINT", ""))
     parser.add_argument("--embeddings-deployment",
                         default=os.getenv("FOUNDRY_EMBEDDINGS_DEPLOYMENT", "text-embedding-3-large"))
+    parser.add_argument("--pdf", type=Path, default=None,
+                        help="Source policy PDF (highest priority). Use this for "
+                             "customer-supplied policy documents.")
     parser.add_argument("--docx", type=Path, default=DEFAULT_DOCX,
-                        help="Source docx (preferred).")
+                        help="Source docx. Used when --pdf is not provided.")
     parser.add_argument("--policies-json", type=Path, default=LEGACY_POLICIES,
                         help="Legacy JSON fallback.")
     parser.add_argument("--skip-ingest", action="store_true",
                         help="Only create/update the index.")
+    parser.add_argument("--purge", action="store_true",
+                        help="Delete all existing documents in the index before "
+                             "ingesting. Use when replacing the policy document so "
+                             "stale chunks from the previous doc are removed.")
     args = parser.parse_args()
 
     log.info(
@@ -263,15 +304,34 @@ def main() -> int:
     if args.skip_ingest:
         return 0
 
-    if args.docx.exists():
+    if args.pdf is not None:
+        if not args.pdf.exists():
+            log.error("PDF not found: %s", args.pdf)
+            return 2
+        policies = policies_from_pdf(args.pdf)
+        source_doc = args.pdf.name
+    elif args.docx.exists():
         policies = policies_from_docx(args.docx)
         source_doc = args.docx.name
     elif args.policies_json.exists():
         policies = policies_from_json(args.policies_json)
         source_doc = args.policies_json.name
     else:
-        log.error("No policy source available. Generate %s first.", DEFAULT_DOCX)
+        log.error("No policy source available. Pass --pdf, generate %s, or "
+                  "provide %s.", DEFAULT_DOCX, LEGACY_POLICIES)
         return 2
+
+    if not policies:
+        log.error("Source %r yielded no policy sections. Check the document's "
+                  "headers match the contract: UPPERCASE, leading digit, no "
+                  "'INTERNAL'.", source_doc)
+        return 2
+    log.info("Loaded %d policy sections from %s", len(policies), source_doc)
+
+    if args.purge:
+        purged = purge_index_documents(args.search_endpoint, args.index_name)
+        log.info("Purged %d existing documents from index '%s'",
+                 purged, args.index_name)
 
     if not args.foundry_endpoint:
         log.error("FOUNDRY_ENDPOINT not set; cannot embed.")
