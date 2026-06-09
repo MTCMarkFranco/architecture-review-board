@@ -117,7 +117,9 @@ def test_validatearb_rejects_missing_file(flask_client):
     assert resp.status_code == 400
 
 
-def test_orchestrator_emits_correlation_id(flask_client, stub_orchestrator, caplog):
+def test_orchestrator_emits_correlation_id(
+    flask_client, stub_orchestrator, caplog, monkeypatch
+):
     """ArbWorkflow.validate must log a correlation id (Observability gate, #37)."""
     # The real ArbWorkflow logs ``[ARB:<cid>] validate start`` / ``... ok in ...``.
     # Our stub bypasses that, so invoke the real validate method's log path
@@ -168,8 +170,8 @@ def test_orchestrator_emits_correlation_id(flask_client, stub_orchestrator, capl
                  "Principles": [], "Mandatory": False}]
 
     import agents.validate_agent as va
-    va.validate_arb_sections = _fake_validate_arb_sections  # type: ignore[assignment]
-    orch_mod.validate_arb_sections = _fake_validate_arb_sections  # type: ignore[assignment]
+    monkeypatch.setattr(va, "validate_arb_sections", _fake_validate_arb_sections)
+    monkeypatch.setattr(orch_mod, "validate_arb_sections", _fake_validate_arb_sections)
 
     wf = orch_mod.ArbWorkflow(config=Config(), client=_StubAgentsClient())
     asyncio.run(wf.validate(dict(_STUB_ARB)))

@@ -53,16 +53,75 @@ SECTION_CATEGORIES: dict[str, list[str]] = {
 
 SYSTEM_PROMPT = (
     "You are an Azure architecture reviewer. For each architecture-design-document "
-    "section provided, validate it against the policies you retrieve from the AI Search "
-    "knowledge base (filtered by the supplied category). Identify violations and "
-    "deviations. When you reference a policy header, replace underscores with spaces.\n\n"
+    "section provided, validate it ONLY against the policies listed under "
+    "[Retrieved Policies] in this prompt. Do NOT invent policies, do NOT call any "
+    "tools, and do NOT cite policies that are not present in [Retrieved Policies]. "
+    "Identify violations and deviations. When you reference a policy header, "
+    "replace underscores with spaces.\n\n"
     "Return ONE JSON object per finding with the schema:\n"
     "{\"Type\": \"Violation|Deviation\", \"Issue\": \"<short title>\","
     " \"Description\": \"<detail>\", \"Principles\": \"<policy header>\","
     " \"Mandatory\": <bool>, \"Category\": \"<policy category>\"}\n"
-    "If the supplied section is empty or contains only 'N/A', return nothing for it.\n"
+    "If [Retrieved Policies] is empty or the section is empty/contains only 'N/A', "
+    "return an empty JSON array.\n"
     "Output ONLY a JSON array of these objects, no prose."
 )
+
+# Per-policy content snippet limit inside the [Retrieved Policies] prompt block.
+_POLICY_SNIPPET_CHARS = 4096
+# Section text we send as the search query (full text still goes to the agent).
+_SEARCH_QUERY_CHARS = 16384
+# Default top-K for retrieval per (section, category) pair.
+_DEFAULT_TOP_K = 8
+
+
+def _retrieve_for_section(
+    section_text: str, category: str, top_k: int = _DEFAULT_TOP_K
+) -> list[dict[str, Any]]:
+    """Run hybrid+semantic search for a section, filtered by category.
+
+    Returns the raw search hit dicts produced by ``search.query.search_policies``.
+    Raises whatever ``search_policies`` raises — callers handle the error path.
+    """
+    from search.query import search_policies
+
+    query = section_text[:_SEARCH_QUERY_CHARS] if section_text else ""
+    return search_policies(query=query, category=category, top=top_k)
+
+
+def _format_retrieved_policies(hits: list[dict[str, Any]]) -> str:
+    """Render the [Retrieved Policies] prompt block from search hits."""
+    if not hits:
+        return "(none)"
+    lines: list[str] = []
+    for i, h in enumerate(hits, 1):
+        header = h.get("header") or "(no header)"
+        cat = h.get("category") or ""
+        score = h.get("@rerank") or h.get("@score") or 0.0
+        content = (h.get("content") or "")[:_POLICY_SNIPPET_CHARS]
+        lines.append(
+            f"--- Policy {i} ---\n"
+            f"Header: {header}\n"
+            f"Category: {cat}\n"
+            f"Score: {score:.4f}\n"
+            f"Content:\n{content}\n"
+        )
+    return "\n".join(lines)
+
+
+def _build_search_failed_finding(
+    section: str, category: str, error: Exception
+) -> dict[str, Any]:
+    """Synthesise a deterministic finding for a failed retrieval call."""
+    return {
+        "Type": "Error",
+        "Issue": "search_failed",
+        "Description": f"Retrieval for section '{section}' (category '{category}') "
+                       f"failed: {error}",
+        "Principles": "",
+        "Mandatory": False,
+        "Category": category,
+    }
 
 
 async def _call_agent(client: Any, agent_name: str, prompt: str, config: Config) -> str:
@@ -199,6 +258,7 @@ async def validate_arb_sections(
     cfg = config or Config()
     cli = client or build_project_client(cfg)
     tasks: list[asyncio.Task] = []
+    findings_from_search_failures: list[dict[str, Any]] = []
 
     def _stringify(content: Any) -> str:
         if isinstance(content, list):
@@ -211,10 +271,27 @@ async def validate_arb_sections(
             continue
         categories = SECTION_CATEGORIES.get(section, ["general"])
         for category in categories:
+            # Orchestrator-driven retrieval: pull policies for this (section,
+            # category) BEFORE invoking the agent. The agent never calls
+            # search itself — it reasons over the [Retrieved Policies] block.
+            try:
+                hits = _retrieve_for_section(text, category)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "search failed for section=%s category=%s: %s",
+                    section, category, e,
+                )
+                findings_from_search_failures.append(
+                    _build_search_failed_finding(section, category, e)
+                )
+                continue
+
+            policies_block = _format_retrieved_policies(hits)
             prompt = (
                 f"{SYSTEM_PROMPT}\n\n"
                 f"[Section Name]\n{section}\n\n"
                 f"[Policy Category Filter]\n{category}\n\n"
+                f"[Retrieved Policies]\n{policies_block}\n\n"
                 f"[Section Content]\n{text}\n"
             )
             tasks.append(asyncio.create_task(
@@ -222,7 +299,7 @@ async def validate_arb_sections(
             ))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    findings: list[dict] = []
+    findings: list[dict] = list(findings_from_search_failures)
     for r in results:
         if isinstance(r, Exception):
             logger.warning("agent call failed: %s", r)

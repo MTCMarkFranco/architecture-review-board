@@ -32,33 +32,17 @@ def main() -> int:
         credential=DefaultAzureCredential(),
     )
 
-    tools: list[dict] = []
-    if cfg.foundry_search_connection_id:
-        tools.append({
-            "type": "azure_ai_search",
-            "azure_ai_search": {
-                "indexes": [{
-                    "project_connection_id": cfg.foundry_search_connection_id,
-                    "index_name": cfg.azure_search_index,
-                    "query_type": "vector_semantic_hybrid",
-                }],
-            },
-        })
-    else:
-        log.warning(
-            "FOUNDRY_SEARCH_CONNECTION_ID not set — agents created without AI Search tool. "
-            "Wire it up after SEARCH-REFACTOR ships."
-        )
-
+    # ValidateArbAgent uses orchestrator-driven retrieval (see prompt-contracts/
+    # AGENT-SEARCH-TOOL.md): policies are fetched in Python and injected into
+    # the prompt as [Retrieved Policies]. The agent therefore needs NO search
+    # tool. IacGeneratorAgent below still needs code_interpreter.
     vdef = PromptAgentDefinition(model=cfg.foundry_model_deployment,
                                  instructions=VALIDATE_PROMPT)
-    if tools:
-        vdef["tools"] = tools
     log.info("Creating/updating %s", cfg.validate_agent_name)
     v = client.agents.create_version(
         agent_name=cfg.validate_agent_name,
         definition=vdef,
-        description="Validates ARB sections against the policy index.",
+        description="Validates ARB sections against policies supplied in-prompt.",
     )
     log.info("  %s version=%s", v.name, v.version)
 
