@@ -2,6 +2,10 @@
 
 Calls a Foundry v2 hosted prompt agent ``ValidateArbAgent`` per ASD section
 and aggregates the JSON findings into a single list.
+
+Uses ``azure-ai-projects`` v2 for agent definition lookup (name → id) and
+``azure-ai-agents`` for runtime threads/messages/runs. Both authenticate via
+``DefaultAzureCredential`` (no API keys).
 """
 
 from __future__ import annotations
@@ -9,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from typing import Any
 
 from azure.identity import DefaultAzureCredential
@@ -17,6 +22,11 @@ from .config import Config
 from .errors import AgentInvocationError, AgentNotFoundError
 
 logger = logging.getLogger(__name__)
+
+# Module-level cache of agent name → agent id. Agent ids are stable for the
+# lifetime of a deployment, so caching avoids a round-trip per section call.
+_AGENT_ID_CACHE: dict[str, str] = {}
+_AGENT_ID_LOCK = threading.Lock()
 
 # Section → policy categories (used to filter the AI Search index per call).
 SECTION_CATEGORIES: dict[str, list[str]] = {
@@ -55,14 +65,16 @@ SYSTEM_PROMPT = (
 )
 
 
-async def _call_agent(client: Any, agent_name: str, prompt: str) -> str:
+async def _call_agent(client: Any, agent_name: str, prompt: str, config: Config) -> str:
     """Invoke a hosted agent and return its assistant text."""
     try:
-        # azure-ai-projects v2 surface — synchronous client, run in thread
+        # azure-ai-agents v1 surface — synchronous client, run in thread
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
-            None, lambda: _sync_invoke(client, agent_name, prompt)
+            None, lambda: _sync_invoke(client, agent_name, prompt, config)
         )
+    except AgentNotFoundError:
+        raise
     except Exception as e:  # noqa: BLE001
         msg = str(e)
         if "404" in msg or "not found" in msg.lower():
@@ -70,18 +82,55 @@ async def _call_agent(client: Any, agent_name: str, prompt: str) -> str:
         raise AgentInvocationError(agent_name, msg) from e
 
 
-def _sync_invoke(client: Any, agent_name: str, prompt: str) -> str:
+def _resolve_agent_id(agent_name: str, config: Config) -> str:
+    """Look up a hosted agent's id by name via AIProjectClient. Cached."""
+    cached = _AGENT_ID_CACHE.get(agent_name)
+    if cached:
+        return cached
+    with _AGENT_ID_LOCK:
+        cached = _AGENT_ID_CACHE.get(agent_name)
+        if cached:
+            return cached
+        try:
+            from azure.ai.projects import AIProjectClient
+        except ImportError as e:  # pragma: no cover
+            raise AgentInvocationError(
+                agent_name,
+                "azure-ai-projects not installed. `pip install -r requirements.txt`",
+            ) from e
+        proj = AIProjectClient(
+            endpoint=config.foundry_project_endpoint,
+            credential=DefaultAzureCredential(),
+        )
+        try:
+            details = proj.agents.get(agent_name)
+        except Exception as e:  # noqa: BLE001
+            msg = str(e)
+            if "404" in msg or "not found" in msg.lower():
+                raise AgentNotFoundError(agent_name) from e
+            raise AgentInvocationError(agent_name, msg) from e
+        agent_id = getattr(details, "id", None)
+        if not agent_id:
+            raise AgentInvocationError(
+                agent_name, "agent definition has no id"
+            )
+        _AGENT_ID_CACHE[agent_name] = agent_id
+        return agent_id
+
+
+def _sync_invoke(client: Any, agent_name: str, prompt: str, config: Config) -> str:
     # Create a thread, post a user message, run the agent, return assistant text.
-    thread = client.agents.threads.create()
-    client.agents.messages.create(
+    agent_id = _resolve_agent_id(agent_name, config)
+    thread = client.threads.create()
+    client.messages.create(
         thread_id=thread.id, role="user", content=prompt
     )
-    run = client.agents.runs.create_and_process(
-        thread_id=thread.id, agent_name=agent_name
+    run = client.runs.create_and_process(
+        thread_id=thread.id, agent_id=agent_id
     )
     if getattr(run, "status", "") == "failed":
         raise RuntimeError(f"run failed: {getattr(run, 'last_error', '')}")
-    msgs = list(client.agents.messages.list(thread_id=thread.id))
+    msgs = list(client.messages.list(thread_id=thread.id))
     for m in msgs:
         if getattr(m, "role", "") == "assistant":
             parts = getattr(m, "content", []) or []
@@ -121,16 +170,21 @@ def _parse_findings(raw: str) -> list[dict]:
 
 
 def build_project_client(config: Config) -> Any:
-    """Construct an AIProjectClient with DefaultAzureCredential."""
+    """Construct an AgentsClient (runtime threads/messages/runs) with DefaultAzureCredential.
+
+    Name retained for backward compatibility with the orchestrator. The returned
+    client is an ``azure.ai.agents.AgentsClient`` — the runtime surface in the
+    Foundry v2 SDK split.
+    """
     config.require_runtime()
     try:
-        from azure.ai.projects import AIProjectClient
+        from azure.ai.agents import AgentsClient
     except ImportError as e:  # pragma: no cover
         raise AgentInvocationError(
             "ValidateArbAgent",
-            "azure-ai-projects not installed. `pip install -r requirements.txt`",
+            "azure-ai-agents not installed. `pip install -r requirements.txt`",
         ) from e
-    return AIProjectClient(
+    return AgentsClient(
         endpoint=config.foundry_project_endpoint,
         credential=DefaultAzureCredential(),
     )
@@ -164,7 +218,7 @@ async def validate_arb_sections(
                 f"[Section Content]\n{text}\n"
             )
             tasks.append(asyncio.create_task(
-                _call_agent(cli, cfg.validate_agent_name, prompt)
+                _call_agent(cli, cfg.validate_agent_name, prompt, cfg)
             ))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
