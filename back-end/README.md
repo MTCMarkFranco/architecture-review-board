@@ -1,6 +1,6 @@
 # ARB Bot — back-end
 
-Flask service exposing `/validatearb` and `/geniac` to the React front-end. Orchestrates **Microsoft Foundry v2 hosted prompt agents** invoked through the **Responses API** with retrieval driven by **Azure AI Search** (hybrid + semantic ranker). All Azure access uses `DefaultAzureCredential`.
+Flask service exposing `/validatearb` and `/geniac` to the React front-end. Orchestrates **Microsoft Foundry v2 hosted prompt agents** invoked through the **Responses API** with retrieval driven by **Azure AI Search** (hybrid + semantic ranker). All Azure access uses identity-based auth — `AzureCliCredential` locally (skips the IMDS probe), `DefaultAzureCredential` in Azure-hosted runtimes. A module-level `SearchClient` cache in `search/query.py` keeps per-call overhead minimal under the section × category fan-out.
 
 See the [repo root README](../README.md) for the full end-to-end setup. This file documents back-end specifics.
 

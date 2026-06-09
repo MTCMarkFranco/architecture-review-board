@@ -8,7 +8,7 @@
 
 AI-powered tool that validates Architecture Solution Design (ASD) documents against organizational cloud and security policies, and generates starter Infrastructure-as-Code (Terraform) scripts from the design content.
 
-Built on **Microsoft Foundry v2 hosted prompt agents** invoked via the **Responses API**, with retrieval driven by the Python orchestrator against an **Azure AI Search** index (hybrid + semantic ranker). **All Azure access uses `DefaultAzureCredential` — no API keys.**
+Built on **Microsoft Foundry v2 hosted prompt agents** invoked via the **Responses API**, with retrieval driven by the Python orchestrator against an **Azure AI Search** index (hybrid + semantic ranker). **All Azure access uses identity-based auth — no API keys.** An adaptive credential picker uses `AzureCliCredential` when running locally (skipping the IMDS probe to `169.254.169.254`) and `DefaultAzureCredential` inside Azure-hosted runtimes (detected via `IDENTITY_ENDPOINT` / `MSI_ENDPOINT` / `WEBSITE_INSTANCE_ID`).
 
 ## UI Preview
 
@@ -236,7 +236,7 @@ Implementation specs for each feature live in [`prompt-contracts/`](prompt-contr
 | Agents | Microsoft Agent Framework, Foundry v2 hosted prompt agents, Responses API |
 | Search | Azure AI Search (hybrid + semantic ranker, HNSW vectors) |
 | Embeddings | `text-embedding-3-large` (Foundry deployment) |
-| Auth | `DefaultAzureCredential` end-to-end — no API keys |
+| Auth | `DefaultAzureCredential` end-to-end — no API keys (with an adaptive credential picker that prefers `AzureCliCredential` locally to avoid the IMDS probe; falls back to `DefaultAzureCredential` inside Azure-hosted runtimes) |
 | Document parsing | PyMuPDF (PDF), python-docx |
 | Resilience | retry-with-backoff + circuit breaker (`agents/resilience.py`) |
 
