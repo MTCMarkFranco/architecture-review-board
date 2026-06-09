@@ -17,10 +17,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 from typing import Any
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential, DefaultAzureCredential
 
 from .config import Config
 from .errors import AgentInvocationError, AgentNotFoundError
@@ -78,6 +79,27 @@ _POLICY_SNIPPET_CHARS = 4096
 _SEARCH_QUERY_CHARS = 16384
 # Default top-K for retrieval per (section, category) pair.
 _DEFAULT_TOP_K = 8
+
+
+def _running_in_azure_host() -> bool:
+    """Best-effort detection for Azure-hosted runtimes with managed identity."""
+    return any(
+        os.getenv(name)
+        for name in (
+            "IDENTITY_ENDPOINT",
+            "MSI_ENDPOINT",
+            "IMDS_ENDPOINT",
+            "WEBSITE_INSTANCE_ID",
+        )
+    )
+
+
+def _build_credential() -> DefaultAzureCredential:
+    """Prefer Azure CLI locally; only probe managed identity in Azure hosts."""
+    if not _running_in_azure_host():
+        tenant_id = os.getenv("AZURE_TENANT_ID") or None
+        return AzureCliCredential(tenant_id=tenant_id)
+    return DefaultAzureCredential()
 
 
 def _retrieve_for_section(
@@ -236,7 +258,7 @@ def build_project_client(config: Config) -> Any:
         ) from e
     return AIProjectClient(
         endpoint=config.foundry_project_endpoint,
-        credential=DefaultAzureCredential(),
+        credential=_build_credential(),
         allow_preview=True,
     )
 

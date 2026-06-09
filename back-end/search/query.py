@@ -4,11 +4,63 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import Any
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential, DefaultAzureCredential
 
 log = logging.getLogger("arb.search.query")
+
+_CREDENTIAL: DefaultAzureCredential | None = None
+_CLIENTS: dict[tuple[str, str], Any] = {}
+_CACHE_LOCK = threading.RLock()
+
+
+def _running_in_azure_host() -> bool:
+    """Best-effort detection for Azure-hosted runtimes with managed identity."""
+    return any(
+        os.getenv(name)
+        for name in (
+            "IDENTITY_ENDPOINT",
+            "MSI_ENDPOINT",
+            "IMDS_ENDPOINT",
+            "WEBSITE_INSTANCE_ID",
+        )
+    )
+
+
+def _get_credential() -> DefaultAzureCredential:
+    global _CREDENTIAL
+    if _CREDENTIAL is not None:
+        return _CREDENTIAL
+    with _CACHE_LOCK:
+        if _CREDENTIAL is None:
+            if not _running_in_azure_host():
+                tenant_id = os.getenv("AZURE_TENANT_ID") or None
+                _CREDENTIAL = AzureCliCredential(tenant_id=tenant_id)
+            else:
+                _CREDENTIAL = DefaultAzureCredential()
+    return _CREDENTIAL
+
+
+def _get_client(endpoint: str, index: str):
+    key = (endpoint, index)
+    cached = _CLIENTS.get(key)
+    if cached is not None:
+        return cached
+    from azure.search.documents import SearchClient
+
+    with _CACHE_LOCK:
+        cached = _CLIENTS.get(key)
+        if cached is not None:
+            return cached
+        client = SearchClient(
+            endpoint=endpoint,
+            index_name=index,
+            credential=_get_credential(),
+        )
+        _CLIENTS[key] = client
+        return client
 
 
 def search_policies(query: str, category: str | None = None,
@@ -18,7 +70,6 @@ def search_policies(query: str, category: str | None = None,
 
     Returns a list of `{"header", "content", "category", "source_doc", "@score"}`.
     """
-    from azure.search.documents import SearchClient
     from azure.search.documents.models import VectorizedQuery
 
     endpoint = os.getenv("AZURE_SEARCH_ENDPOINT", "")
@@ -26,8 +77,7 @@ def search_policies(query: str, category: str | None = None,
     if not endpoint:
         raise RuntimeError("AZURE_SEARCH_ENDPOINT is required")
 
-    client = SearchClient(endpoint=endpoint, index_name=index,
-                          credential=DefaultAzureCredential())
+    client = _get_client(endpoint, index)
 
     filters: list[str] = []
     if category:
