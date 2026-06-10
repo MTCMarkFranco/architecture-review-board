@@ -52,10 +52,15 @@ SYSTEM_PROMPT = (
     "section provided, validate it ONLY against the policies listed under "
     "[Retrieved Policies] in this prompt. Do NOT invent policies, do NOT call any "
     "tools, and do NOT cite policies that are not present in [Retrieved Policies]. "
-    "Identify violations and deviations. When you reference a policy header, "
-    "replace underscores with spaces.\n\n"
+    "Identify any issues. When you reference a policy header, replace underscores "
+    "with spaces.\n\n"
+    "Use these values for Type:\n"
+    "- Violation: section breaks a hard policy requirement (must-fix).\n"
+    "- Deviation: section goes against policy intent or preferred pattern (should-fix).\n"
+    "- Suggestion: section is acceptable but could be improved per policy guidance.\n"
+    "- Missing: a required topic from the policy is not addressed at all in the section.\n\n"
     "Return ONE JSON object per finding with the schema:\n"
-    "{\"Type\": \"Violation|Deviation\", \"Issue\": \"<short title>\","
+    "{\"Type\": \"Violation|Deviation|Suggestion|Missing\", \"Issue\": \"<short title>\","
     " \"Description\": \"<detail>\", \"Principles\": \"<policy header>\","
     " \"Mandatory\": <bool>, \"Category\": \"<policy category>\"}\n"
     "If [Retrieved Policies] is empty or the section is empty/contains only 'N/A', "
@@ -107,13 +112,23 @@ def _retrieve_for_section(
 
 
 def _format_retrieved_policies(hits: list[dict[str, Any]]) -> str:
-    """Render the [Retrieved Policies] prompt block from search hits."""
+    """Render the [Retrieved Policies] prompt block from search hits.
+
+    Header fallback: with the DocumentIntelligenceLayoutSkill pipeline the
+    per-chunk ``header`` field is null (the skill in outputFormat=text mode
+    does not surface section headings as a separate field). When that
+    happens we use the chunk's ``category`` as the principle label, which
+    is a real semantic value populated by the AOAI categorize skill at
+    ingest time (e.g. ``Reliability``, ``Network``). The agent then cites
+    the category as the principle, which is more meaningful than the
+    placeholder ``(no header)`` the old fallback emitted.
+    """
     if not hits:
         return "(none)"
     lines: list[str] = []
     for i, h in enumerate(hits, 1):
-        header = h.get("header") or "(no header)"
         cat = h.get("category") or ""
+        header = h.get("header") or cat or "(no header)"
         score = h.get("@rerank") or h.get("@score") or 0.0
         content = (h.get("content") or "")[:_POLICY_SNIPPET_CHARS]
         lines.append(

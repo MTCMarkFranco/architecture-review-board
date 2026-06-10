@@ -111,6 +111,54 @@ def test_empty_retrieval_renders_none_block(monkeypatch: pytest.MonkeyPatch):
     assert "[Retrieved Policies]\n(none)" in fake.last_user_prompt
 
 
+def test_header_falls_back_to_category_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """When the index's `header` field is null (DocIntel pipeline), use
+    `category` as the principle label instead of literally emitting
+    '(no header)'."""
+    hits = [
+        {"header": None, "category": "Reliability",
+         "content": "RPO/RTO must be defined.", "@rerank": 2.50},
+        {"header": "", "category": "Network",
+         "content": "Hub-spoke required.", "@rerank": 2.10},
+    ]
+    monkeypatch.setattr(va, "_retrieve_for_section",
+                        lambda text, category, top_k=8: hits)
+    fake = _FakeProjectClient(reply="[]")
+    arb = {"Disaster Recovery Requirements": "Backups happen daily."}
+    asyncio.run(va.validate_arb_sections(arb, _make_cfg(), fake))
+
+    prompt = fake.last_user_prompt
+    assert "Header: Reliability" in prompt
+    assert "Header: Network" in prompt
+    assert "(no header)" not in prompt
+
+
+def test_no_header_only_used_when_both_header_and_category_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    hits = [{"header": None, "category": None,
+             "content": "edge case.", "@rerank": 1.0}]
+    monkeypatch.setattr(va, "_retrieve_for_section",
+                        lambda text, category, top_k=8: hits)
+    fake = _FakeProjectClient(reply="[]")
+    arb = {"Network Requirements": "x"}
+    asyncio.run(va.validate_arb_sections(arb, _make_cfg(), fake))
+    assert "Header: (no header)" in fake.last_user_prompt
+
+
+def test_system_prompt_lists_all_four_finding_types():
+    """Schema-contract test: prompt must enumerate Violation, Deviation,
+    Suggestion, and Missing — adding/removing values requires a deliberate
+    code change here."""
+    for finding_type in ("Violation", "Deviation", "Suggestion", "Missing"):
+        assert finding_type in va.SYSTEM_PROMPT, (
+            f"{finding_type!r} missing from SYSTEM_PROMPT — frontend may "
+            f"surface findings the agent can no longer produce, or vice versa."
+        )
+
+
 def test_search_failure_records_error_finding_and_skips_agent(
     monkeypatch: pytest.MonkeyPatch,
 ):
