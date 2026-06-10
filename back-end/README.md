@@ -87,6 +87,8 @@ All are read from the repo-root `.env` via `python-dotenv`. The required runtime
 | `VALIDATE_AGENT_NAME` | optional | defaults to `ValidateArbAgent` |
 | `IAC_AGENT_NAME` | optional | defaults to `IacGeneratorAgent` |
 | `WORKFLOW_TIMEOUT_SECONDS` | optional | defaults to `60`; bump to `180` for full-doc runs |
+| `MISSING_VERIFY_ENABLED` | optional | defaults to `true`; doc-level verification of deduped `Missing` findings. Set `false` to skip the extra fast-model calls and keep raw `(also missing in N other chunks)` suffixes |
+| `MISSING_VERIFY_MAX` | optional | defaults to `10`; cap on distinct `Missing` principles verified per validate run. Tail items beyond the cap keep the chunk-count suffix |
 
 ## Endpoints
 

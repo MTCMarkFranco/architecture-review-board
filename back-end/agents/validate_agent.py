@@ -427,7 +427,17 @@ async def validate_arb_chunks(
             continue
         if r:
             findings.extend(r)
-    return dedupe_missing_findings(findings)
+
+    deduped = dedupe_missing_findings(findings)
+    if cfg.missing_verify_enabled:
+        from .verify_missing import verify_missing_findings
+        doc_text = "\n\n".join(chunks)
+        try:
+            return await verify_missing_findings(deduped, doc_text, cfg)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("verify_missing_findings failed; returning deduped findings: %s", e)
+            return deduped
+    return deduped
 
 
 def _missing_key(f: dict[str, Any]) -> str | None:
