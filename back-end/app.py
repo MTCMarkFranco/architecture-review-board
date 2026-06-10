@@ -14,16 +14,13 @@ from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from botbuilder.core import (
-    BotFrameworkAdapter,
-    BotFrameworkAdapterSettings,
+from botbuilder.core import TurnContext
+from botbuilder.integration.aiohttp import (
+    CloudAdapter,
+    ConfigurationBotFrameworkAuthentication,
 )
-from botbuilder.core.skills import SkillHandler
 from botbuilder.schema import Activity
-from botframework.connector.auth import (
-    AuthenticationConfiguration,
-    SimpleCredentialProvider,
-)
+from botframework.connector.auth import AuthenticationConfiguration
 
 from agents.config import Config, ConfigError
 from agents.errors import (
@@ -80,47 +77,56 @@ if _COPILOT_STUDIO_APP_ID not in _ALLOWED_CALLERS:
     _ALLOWED_CALLERS.append(_COPILOT_STUDIO_APP_ID)
 
 
-async def _validate_claims(claims: list) -> None:
-    """Claims validator that enforces the allowed-callers list.
+async def _validate_claims(claims: dict) -> None:
+    """Claims validator for the Bot Framework skill.
     
+    `claims` is a Dict[str, str] from ClaimsIdentity.claims.
+    Keys are claim types (appid, azp, aud, iss, ver, etc.)
     If ALLOWED_CALLERS contains '*', all callers are allowed.
-    Otherwise, the appid claim must be in the list.
+    Otherwise, the caller's appid/azp must be in the allowed list.
     """
     if "*" in _ALLOWED_CALLERS:
         return
-    # Extract the appid or azp claim (caller's app ID)
-    for claim in claims:
-        if isinstance(claim, dict):
-            key = claim.get("type", "")
-            value = claim.get("value", "")
-        else:
-            # Claims may be key-value tuples or objects with .type/.value
-            key = getattr(claim, "type", "") or (claim[0] if isinstance(claim, (list, tuple)) else "")
-            value = getattr(claim, "value", "") or (claim[1] if isinstance(claim, (list, tuple)) else "")
-        if key in ("appid", "azp", "aud") and value in _ALLOWED_CALLERS:
-            return
-    # If no allowed caller claim found, still allow (permissive for initial setup)
-    # In production, raise PermissionError here
-    return
+
+    # claims is a dict like {"appid": "xxx", "aud": "yyy", "azp": "zzz", ...}
+    caller_app_id = claims.get("appid") or claims.get("azp") or ""
+    if caller_app_id in _ALLOWED_CALLERS:
+        return
+
+    # Also check aud (audience) — in some flows the caller's ID appears here
+    aud = claims.get("aud", "")
+    if aud in _ALLOWED_CALLERS:
+        return
+
+    raise PermissionError(
+        f"Caller {caller_app_id!r} is not in the allowed callers list."
+    )
 
 
 _auth_config = AuthenticationConfiguration(
     claims_validator=_validate_claims,
 )
 
-_adapter_settings = BotFrameworkAdapterSettings(
-    app_id=_APP_ID,
-    app_password=_APP_PASSWORD,
-    auth_configuration=_auth_config,
+
+# Configuration object for ConfigurationBotFrameworkAuthentication
+class _BotConfig:
+    APP_ID = _APP_ID
+    APP_PASSWORD = _APP_PASSWORD
+    APP_TYPE = "MultiTenant"
+
+
+_adapter = CloudAdapter(
+    ConfigurationBotFrameworkAuthentication(
+        _BotConfig,
+        auth_configuration=_auth_config,
+    )
 )
-_adapter = BotFrameworkAdapter(_adapter_settings)
 _bot = ARBSkillBot()
 
 
 async def _on_adapter_error(context, error):
     """Global error handler for the Bot Framework adapter."""
     log.exception("Bot adapter error: %s", error)
-    await context.send_activity("An error occurred processing the skill request.")
 
 
 _adapter.on_turn_error = _on_adapter_error
@@ -333,19 +339,48 @@ def messages():
     activity = Activity().deserialize(body)
     auth_header = request.headers.get("Authorization", "")
 
+    # Diagnostic: decode token without verification to log issuer/audience
+    if auth_header.startswith("Bearer "):
+        try:
+            import jwt as pyjwt
+            token = auth_header.split(" ", 1)[1]
+            unverified = pyjwt.decode(token, options={"verify_signature": False})
+            log.warning(
+                "DIAG token claims: iss=%s aud=%s appid=%s azp=%s ver=%s",
+                unverified.get("iss"),
+                unverified.get("aud"),
+                unverified.get("appid"),
+                unverified.get("azp"),
+                unverified.get("ver"),
+            )
+        except Exception as diag_err:
+            log.warning("DIAG token decode failed: %s", diag_err)
+
     async def _process():
-        await _adapter.process_activity(activity, auth_header, _bot.on_turn)
+        response = await _adapter.process_activity(
+            auth_header, activity, _bot.on_turn
+        )
+        return response
 
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(_process())
+        response = loop.run_until_complete(_process())
+    except PermissionError as e:
+        log.warning("Auth rejected: %s", e)
+        return Response(status=401)
     except Exception as e:
-        log.exception("Error processing Bot Framework activity")
-        return jsonify({"error": str(e)}), 500
+        error_str = str(e).lower()
+        if "unauthorized" in error_str or "401" in error_str or "token" in error_str:
+            log.warning("Auth error (%s): %s", type(e).__name__, e)
+            return Response(status=401)
+        log.exception("Error processing Bot Framework activity: %s: %s", type(e).__name__, e)
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
     finally:
         loop.close()
 
+    if response:
+        return Response(status=response.status)
     return Response(status=200)
 
 

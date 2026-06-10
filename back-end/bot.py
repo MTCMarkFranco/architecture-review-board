@@ -81,13 +81,15 @@ class ARBSkillBot(ActivityHandler):
         await turn_context.send_activity(end_activity)
 
     async def on_end_of_conversation_activity(self, turn_context: TurnContext):
-        """Respond to EndOfConversation — used by Copilot Studio health check."""
+        """Respond to EndOfConversation — used by Copilot Studio health check.
+        
+        Per the skill protocol, we simply acknowledge the EndOfConversation.
+        The 200 HTTP response itself is the acknowledgment; no activity reply needed.
+        """
         logger.info("Skill health check (EndOfConversation) received")
-        end_activity = Activity(
-            type=ActivityTypes.end_of_conversation,
-            code=EndOfConversationCodes.completed_successfully,
-        )
-        await turn_context.send_activity(end_activity)
+        # Do NOT send a reply activity — the 200 HTTP status is sufficient.
+        # Sending a reply here can fail if the serviceUrl isn't reachable or
+        # if outbound token acquisition fails, causing a 500.
 
     # ------------------------------------------------------------------
     # Business logic handlers
