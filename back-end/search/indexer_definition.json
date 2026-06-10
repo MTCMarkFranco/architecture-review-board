@@ -1,0 +1,27 @@
+{
+  "name": "arb-policies-indexer",
+  "description": "Pull-mode indexer that runs the arb-policies-skillset over every blob in the source container and projects one chunk per index document.",
+  "dataSourceName": "arb-policies-blob",
+  "targetIndexName": "{{AZURE_SEARCH_INDEX}}",
+  "skillsetName": "arb-policies-skillset",
+  "schedule": null,
+  "parameters": {
+    "batchSize": 1,
+    "maxFailedItems": 0,
+    "maxFailedItemsPerBatch": 0,
+    "configuration": {
+      "parsingMode": "default",
+      "dataToExtract": "contentAndMetadata",
+      "imageAction": "none",
+      "allowSkillsetToReadFileData": true
+    }
+  },
+  "fieldMappings": [
+    {
+      "sourceFieldName": "metadata_storage_path",
+      "targetFieldName": "source_doc_key",
+      "mappingFunction": { "name": "base64Encode" }
+    }
+  ],
+  "outputFieldMappings": []
+}

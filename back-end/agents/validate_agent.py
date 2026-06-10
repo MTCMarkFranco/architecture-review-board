@@ -23,6 +23,11 @@ from typing import Any
 
 from azure.identity import AzureCliCredential, DefaultAzureCredential
 
+from .categories import (
+    ASD_SECTION_CATEGORIES,
+    DEFAULT_SECTION_CATEGORIES,
+    PolicyCategory,
+)
 from .config import Config
 from .errors import AgentInvocationError, AgentNotFoundError
 
@@ -34,27 +39,12 @@ logger = logging.getLogger(__name__)
 _OAI_CLIENT_CACHE: dict[tuple[str, str], Any] = {}
 _OAI_CLIENT_LOCK = threading.Lock()
 
-# Section → policy categories (used to filter the AI Search index per call).
+# Backwards-compatible alias for callers / tests that still reach for
+# ``SECTION_CATEGORIES`` as a plain ``dict[str, list[str]]``. New code should
+# import :data:`agents.categories.ASD_SECTION_CATEGORIES` directly.
 SECTION_CATEGORIES: dict[str, list[str]] = {
-    "Introduction": ["Operational Excellence"],
-    "Key Functionalities/Capabilities": ["Operational Excellence"],
-    "Assumptions/Constraints/Recommendations": ["Reliability"],
-    "User/Usage Requirements": ["Operational Excellence"],
-    "Interface Requirements": ["Security and Governance"],
-    "Security Requirements": ["Security and Governance"],
-    "Network Requirements": ["Network"],
-    "Software Requirements": ["Operational Excellence"],
-    "Performance Requirements": ["Performance and Efficiency"],
-    "Supportability Requirements": ["Operational Excellence"],
-    "Storage Requirements": ["Storage and Data", "Cost Optimization"],
-    "Database Requirements": ["Storage and Data"],
-    "Disaster Recovery Requirements": ["Reliability"],
-    "Compliance Requirements": ["Security and Governance"],
-    "Licensing Requirements": ["Cost Optimization"],
-    "Proposed Solution": ["Operational Excellence", "Reliability"],
-    "EC2 Sizing/Specifications": ["Cost Optimization"],
-    "On-Prem Servers Sizing/Specification": ["Cost Optimization"],
-    "Deployment Details": ["Security and Governance"],
+    section: [c.value for c in cats]
+    for section, cats in ASD_SECTION_CATEGORIES.items()
 }
 
 SYSTEM_PROMPT = (
@@ -283,7 +273,11 @@ async def validate_arb_sections(
         text = _stringify(content)
         if not text or "N/A" in text:
             continue
-        categories = SECTION_CATEGORIES.get(section, ["general"])
+        # Use the canonical PolicyCategory enum values (string form) — preserves
+        # the existing on-the-wire contract with search/query.py (which compares
+        # against the index's ``category`` string field).
+        category_enums = ASD_SECTION_CATEGORIES.get(section, DEFAULT_SECTION_CATEGORIES)
+        categories = [c.value for c in category_enums]
         for category in categories:
             # Orchestrator-driven retrieval: pull policies for this (section,
             # category) BEFORE invoking the agent. The agent never calls

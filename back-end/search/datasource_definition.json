@@ -1,0 +1,11 @@
+{
+  "name": "arb-policies-blob",
+  "type": "azureblob",
+  "credentials": {
+    "connectionString": "ResourceId={{STORAGE_ACCOUNT_RESOURCE_ID}};"
+  },
+  "container": {
+    "name": "{{STORAGE_CONTAINER}}"
+  },
+  "description": "Source blob container for the arb-policies pull-mode pipeline. Drop .docx or .pdf policy documents here; the indexer cracks, chunks, categorizes, and embeds them into the arb-policies index. Auth is the Search service's system-assigned managed identity (Storage Blob Data Reader on the storage account)."
+}
