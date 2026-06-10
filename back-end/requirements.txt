@@ -1,6 +1,7 @@
 # Microsoft Agent Framework + Azure AI Foundry v2
 agent-framework-foundry>=1.0.1
 azure-ai-projects>=2.0.0
+azure-ai-documentintelligence>=1.0.0
 
 # Azure RBAC + Search + Storage
 azure-identity>=1.15.0

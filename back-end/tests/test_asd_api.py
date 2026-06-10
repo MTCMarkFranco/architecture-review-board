@@ -121,20 +121,23 @@ def test_orchestrator_emits_correlation_id(
     flask_client, stub_orchestrator, caplog, monkeypatch
 ):
     """ArbWorkflow.validate must log a correlation id (Observability gate, #37)."""
-    # The real ArbWorkflow logs ``[ARB:<cid>] validate start`` / ``... ok in ...``.
-    # Our stub bypasses that, so invoke the real validate method's log path
-    # directly to assert the contract holds on the unstubbed code.
+    # The real ArbWorkflow logs ``[ARB:<cid>] validate(sections) start`` /
+    # ``[ARB:<cid>] validate(chunks) start`` (the API uses chunks; sections is
+    # the legacy programmatic path) and ``... ok in ...``. Our stub bypasses
+    # that, so invoke the real validate method's log path directly to assert
+    # the contract holds on the unstubbed code.
     import importlib
 
     orch_mod = importlib.import_module("agents.orchestrator")
     caplog.set_level(logging.INFO, logger=orch_mod.__name__)
 
     # Capture the format string of the start-of-validate log call by inspecting
-    # the source — the contract is "[ARB:<cid>] validate start" where cid is an
-    # 8-char hex correlation id.
+    # the source — the contract is "[ARB:<cid>] <stage> start" where cid is an
+    # 8-char hex correlation id, for every stage method.
     src = Path(orch_mod.__file__).read_text(encoding="utf-8")
     assert 'uuid.uuid4().hex[:8]' in src, "correlation id generator missing"
-    assert '[ARB:%s] validate start' in src, "validate start log missing cid"
+    assert '[ARB:%s] validate(sections) start' in src, "validate(sections) log missing cid"
+    assert '[ARB:%s] validate(chunks) start' in src, "validate(chunks) log missing cid"
     assert '[ARB:%s] iac start' in src, "iac start log missing cid"
 
     # And the API path returns 200, confirming the stubbed pipeline runs end-to-end.

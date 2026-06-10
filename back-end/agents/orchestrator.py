@@ -22,7 +22,11 @@ from .config import Config
 from .errors import WorkflowError, WorkflowTimeoutError
 from .iac_agent import generate_iac
 from .resilience import CircuitBreaker, async_retry_with_backoff
-from .validate_agent import build_project_client, validate_arb_sections
+from .validate_agent import (
+    build_project_client,
+    validate_arb_chunks,
+    validate_arb_sections,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +50,14 @@ class ArbWorkflow:
         return self._client
 
     async def validate(self, arb: dict[str, Any]) -> list[dict]:
+        """Section-based validate. Retained for callers that already parse the
+        ASD into a dict (legacy tests, programmatic users). New callers should
+        prefer :meth:`validate_bytes` so the doc is semantically chunked instead
+        of split by hard-coded section names.
+        """
         cid = uuid.uuid4().hex[:8]
         start = time.monotonic()
-        logger.info("[ARB:%s] validate start", cid)
+        logger.info("[ARB:%s] validate(sections) start", cid)
         try:
             result = await async_retry_with_backoff(
                 lambda: asyncio.wait_for(
@@ -66,7 +75,42 @@ class ArbWorkflow:
             raise
         except Exception as e:  # noqa: BLE001
             raise WorkflowError(f"validate failed: {e}") from e
-        logger.info("[ARB:%s] validate ok in %.2fs (%d findings)",
+        logger.info("[ARB:%s] validate(sections) ok in %.2fs (%d findings)",
+                    cid, time.monotonic() - start, len(result))
+        return result
+
+    async def validate_bytes(self, file_bytes: bytes,
+                             filename: str | None = None) -> list[dict]:
+        """Chunk-based validate. Sole entry point used by the /validatearb API.
+
+        Semantically chunks the uploaded PDF/DOCX via Document Intelligence,
+        AOAI-categorizes each chunk, runs a filtered hybrid + semantic search,
+        and fans out to ValidateArbAgent per chunk. See
+        :func:`validate_agent.validate_arb_chunks` for the design.
+        """
+        cid = uuid.uuid4().hex[:8]
+        start = time.monotonic()
+        logger.info("[ARB:%s] validate(chunks) start filename=%s bytes=%d",
+                    cid, filename, len(file_bytes))
+        try:
+            result = await async_retry_with_backoff(
+                lambda: asyncio.wait_for(
+                    validate_arb_chunks(file_bytes, filename,
+                                        self.config, self._get_client()),
+                    timeout=self.config.timeout_seconds,
+                ),
+                max_retries=self.config.retry_count,
+                base_delay=self.config.retry_base_delay,
+                deadline=self.config.timeout_seconds,
+                circuit_breaker=self._breaker,
+            )
+        except asyncio.TimeoutError as e:
+            raise WorkflowTimeoutError(self.config.timeout_seconds) from e
+        except WorkflowError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise WorkflowError(f"validate failed: {e}") from e
+        logger.info("[ARB:%s] validate(chunks) ok in %.2fs (%d findings)",
                     cid, time.monotonic() - start, len(result))
         return result
 
