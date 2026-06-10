@@ -133,3 +133,112 @@ Inspect the last indexer run without re-running:
 ```powershell
 python -m search.build_indexer --status
 ```
+
+## MCP server (contracts MCP-SERVER-ENTRA #90, MCP-SHAREPOINT-OBO #91)
+
+The Flask REST endpoints (`/validatearb`, `/geniac`, `/health`) are unchanged.
+**Additive**: a Model Context Protocol server is mounted at
+`MCP_ROUTE` (default `/api/mcp`) exposing the same capabilities to
+Microsoft Copilot Studio and other MCP clients.
+
+### Tools / resources / prompts
+
+| Tool | Purpose |
+|---|---|
+| `validate_arb` | Validate an ASD (`file_bytes_b64` OR SharePoint `file_reference`) |
+| `generate_iac` | Produce Terraform for an approved design (same input shapes) |
+| `search_policies` | Hybrid + semantic search of `arb-policies` |
+| `list_policy_categories` | Return the canonical `PolicyCategory` list |
+
+Resources: `arb://policies`, `arb://policies/{id}`.
+Prompts: `review_architecture`, `explain_finding`, `draft_iac`.
+
+### Required env vars
+
+| Var | Source | Notes |
+|---|---|---|
+| `MCP_SERVER_NAME` | optional | defaults to `arb-bot-mcp` |
+| `MCP_ROUTE` | optional | defaults to `/api/mcp` |
+| `ENTRA_TENANT_ID` | provision_mcp_entra.py output | |
+| `ENTRA_API_CLIENT_ID` | provision_mcp_entra.py output | App registration that exposes the MCP API |
+| `ENTRA_API_AUDIENCE` | optional | defaults to `api://<ENTRA_API_CLIENT_ID>` |
+| `ENTRA_REQUIRED_SCOPE` | optional | defaults to `ARB.Invoke` |
+| `ENTRA_API_CLIENT_SECRET` | **Key Vault / App Service config** | Required for OBO; never commit |
+| `GRAPH_SCOPES` | optional | defaults to `Files.Read.All Sites.Read.All` |
+| `MCP_MAX_BODY_BYTES` | optional | defaults to 25 MiB |
+| `MCP_CORS_ORIGINS` | optional | comma-separated allow-list; no wildcards in prod |
+
+### Local run
+
+```powershell
+# 1. Provision Entra app registration + scope + Graph permissions (idempotent)
+python -m infra.provision_mcp_entra              # plan + apply
+python -m infra.provision_mcp_entra --dry-run    # plan only
+python -m infra.provision_mcp_entra --issue-secret  # rotate / issue client secret (printed once)
+
+# 2. Set env (FOUNDRY_/AZURE_ vars must already be set per the table above)
+$env:ENTRA_API_CLIENT_SECRET = "<from Key Vault>"
+
+# 3. Run the composite ASGI app (MCP + legacy Flask routes)
+python -m mcp_server.server
+# or:
+uvicorn mcp_server.server:_lazy_app --factory --host 0.0.0.0 --port 8000
+```
+
+The MCP route is at `http://localhost:8000/api/mcp` (Streamable HTTP +
+SSE). `/validatearb`, `/geniac`, `/health` are still served by Flask.
+
+### Test with MCP Inspector
+
+```powershell
+$token = az account get-access-token --resource "api://<ENTRA_API_CLIENT_ID>" --query accessToken --output tsv
+# Use the bearer token in MCP Inspector or any MCP client.
+```
+
+### Test with raw curl / Invoke-WebRequest
+
+```powershell
+$token = az account get-access-token --resource "api://<appId>" --query accessToken --output tsv
+$h = @{ Authorization = "Bearer $token"; "Content-Type" = "application/json"; Accept = "application/json, text/event-stream" }
+$body = '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+Invoke-WebRequest -Uri "http://localhost:8000/api/mcp" -Method POST -Headers $h -Body $body
+```
+
+### SharePoint file mentions (OBO)
+
+When Copilot Studio sends a `file_reference` (driveId/itemId, siteId/itemId,
+or webUrl/sharing link) instead of inline bytes, the server:
+
+1. Validates the incoming user token (`mcp_server/auth.py`)
+2. Exchanges it for a Microsoft Graph delegated token via MSAL
+   `acquire_token_on_behalf_of` (OBO)
+3. Resolves the locator to a drive item and downloads `/content`
+4. Feeds bytes to `ArbWorkflow.validate_bytes` / `iac_bytes` unchanged
+
+Per-user SharePoint permissions are enforced end-to-end. A user without
+access gets `file_access_denied`; the server **never** retries with
+app-only / service-identity. See `prompt-contracts/MCP-SHAREPOINT-OBO.md`.
+
+### Deploy to App Service
+
+The composite ASGI app (`mcp_server.server:_lazy_app`) runs on any ASGI
+host. For Azure App Service Linux + Python:
+
+```bash
+gunicorn -k uvicorn.workers.UvicornWorker --factory mcp_server.server:_lazy_app
+```
+
+App Service Easy Auth is **optional** — the in-app middleware
+(`mcp_server/auth.py`) validates Entra bearer tokens directly. If you
+front the app with Easy Auth, set it to **"return 401" for unauthenticated
+API calls** (NOT redirect-to-login) and keep the in-app middleware: Easy
+Auth handles the connection-level audit, the middleware enforces the
+`ARB.Invoke` scope.
+
+### Copilot Studio integration
+
+See `back-end/mcp_server/copilot-studio/README.md`. Edit
+`mcp-connector.openapi.yaml` to fill your `https://YOUR-APP.azurewebsites.net`,
+`<TENANT_ID>`, and `<ENTRA_API_CLIENT_ID>`, then import via Copilot
+Studio → Tools → Custom connector → Import OpenAPI.
+

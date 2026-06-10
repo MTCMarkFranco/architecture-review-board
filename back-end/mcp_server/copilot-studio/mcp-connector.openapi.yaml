@@ -1,0 +1,79 @@
+openapi: 3.0.1
+info:
+  title: ARB Bot — Architecture Review Board MCP
+  description: |
+    Custom connector for Microsoft Copilot Studio exposing the ARB Bot MCP
+    server as a skill. The server validates Architecture Design Documents,
+    generates IaC, and searches Azure policy knowledge — protected by
+    Microsoft Entra ID (OAuth 2.0 authorization-code with PKCE).
+
+    Tool surface (via MCP `tools/list`):
+      • validate_arb           — validate an ASD against Azure policies
+      • generate_iac           — produce Terraform for an approved design
+      • search_policies        — hybrid + semantic search of the policy index
+      • list_policy_categories — canonical category taxonomy
+
+    Resources: `arb://policies`, `arb://policies/{id}`
+    Prompts:   `review_architecture`, `explain_finding`, `draft_iac`
+
+    See `prompt-contracts/MCP-SERVER-ENTRA.md` and
+    `prompt-contracts/MCP-SHAREPOINT-OBO.md` for full design notes.
+  version: 1.0.0
+servers:
+  - url: https://YOUR-APP.azurewebsites.net
+    description: Replace with your App Service hostname.
+paths:
+  /api/mcp:
+    post:
+      summary: MCP Streamable HTTP endpoint
+      description: |
+        Single MCP protocol endpoint. Copilot Studio negotiates `initialize`,
+        then dispatches `tools/list`, `tools/call`, `resources/list`,
+        `resources/read`, and `prompts/get` over JSON-RPC 2.0 framed in
+        Server-Sent Events (`text/event-stream`).
+      operationId: McpStreamableHttp
+      security:
+        - EntraOAuth: [ARB.Invoke]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: JSON-RPC 2.0 envelope (initialize / tools/list / tools/call / …).
+      responses:
+        "200":
+          description: SSE stream containing one or more JSON-RPC responses.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Unauthenticated — token missing, expired, or invalid.
+        "403":
+          description: Authenticated but missing the `ARB.Invoke` scope.
+        "413":
+          description: Request body exceeds MCP_MAX_BODY_BYTES.
+  /health:
+    get:
+      summary: Liveness probe
+      operationId: Health
+      security: []
+      responses:
+        "200":
+          description: ok
+components:
+  securitySchemes:
+    EntraOAuth:
+      type: oauth2
+      description: |
+        Microsoft Entra ID — authorization-code with PKCE. The connector must
+        request the delegated scope `api://<ENTRA_API_CLIENT_ID>/ARB.Invoke`.
+        Replace `<TENANT_ID>` and `<ENTRA_API_CLIENT_ID>` below.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/authorize
+          tokenUrl:         https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token
+          scopes:
+            api://<ENTRA_API_CLIENT_ID>/ARB.Invoke: Invoke ARB Bot on behalf of the signed-in user
