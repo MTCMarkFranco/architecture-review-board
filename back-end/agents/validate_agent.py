@@ -500,13 +500,46 @@ def _retrieve_for_chunk(
     Passes the chunk's embedding as ``vector`` so ``search_policies`` issues
     a true hybrid query (BM25 + ANN) under the semantic ranker, with the
     AOAI-assigned category as a hard filter on the search index.
+
+    Two robustness behaviours:
+
+    1. ``category == "general"`` is treated as **no filter** — by definition
+       a chunk in the "general" bucket could apply to any category, so we
+       let the semantic ranker pick the best matches across the whole
+       index rather than filter to a bucket the policy ingest skillset
+       almost never assigns.
+    2. If a filtered search returns zero hits we retry WITHOUT the filter
+       so the agent at least sees SOMETHING relevant — better than empty
+       findings driven by a mis-categorisation upstream.
     """
     from search.query import search_policies
 
     query = chunk_text[:_SEARCH_QUERY_CHARS] if chunk_text else ""
-    return search_policies(
+
+    # (1) general → no filter
+    effective_category: str | None = category
+    if (category or "").strip().lower() == "general":
+        logger.debug("category=general, dropping filter for hybrid+semantic search")
+        effective_category = None
+
+    hits = search_policies(
         query=query,
-        category=category,
+        category=effective_category,
         top=top_k,
         vector=vector,
     )
+
+    # (2) fallback to unfiltered if the filter starved us
+    if not hits and effective_category is not None:
+        logger.info(
+            "category=%s returned 0 hits; retrying without filter so the "
+            "agent has policies to reason over.",
+            effective_category,
+        )
+        hits = search_policies(
+            query=query,
+            category=None,
+            top=top_k,
+            vector=vector,
+        )
+    return hits
