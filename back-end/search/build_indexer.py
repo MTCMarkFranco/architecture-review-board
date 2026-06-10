@@ -56,7 +56,7 @@ from agents.validate_agent import _build_credential
 log = logging.getLogger("build_indexer")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
-SEARCH_API_VERSION = "2024-11-01-preview"
+SEARCH_API_VERSION = "2025-11-01-preview"
 SEARCH_SCOPE = "https://search.azure.com/.default"
 
 HERE = Path(__file__).resolve().parent
@@ -232,10 +232,13 @@ def main() -> int:
     datasource = _load_template("datasource_definition.json", substitutions)
     skillset = _load_template("skillset_definition.json", substitutions)
     indexer = _load_template("indexer_definition.json", substitutions)
+    index = _load_template("index_schema.json", substitutions)
 
     api = f"?api-version={SEARCH_API_VERSION}"
     _put(session, f"{search_endpoint}/datasources('arb-policies-blob'){api}",
          datasource, headers, "datasource arb-policies-blob")
+    _put(session, f"{search_endpoint}/indexes('{index_name}'){api}",
+         index, headers, f"index {index_name}")
     _put(session, f"{search_endpoint}/skillsets('arb-policies-skillset'){api}",
          skillset, headers, "skillset arb-policies-skillset")
     _put(session, f"{search_endpoint}/indexers('arb-policies-indexer'){api}",

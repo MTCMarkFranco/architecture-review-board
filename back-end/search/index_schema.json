@@ -1,12 +1,13 @@
 {
   "name": "arb-policies",
   "fields": [
-    {"name": "id", "type": "Edm.String", "key": true, "filterable": true, "sortable": false, "facetable": false, "searchable": false},
+    {"name": "id", "type": "Edm.String", "key": true, "filterable": true, "sortable": false, "facetable": false, "searchable": true, "analyzer": "keyword"},
     {"name": "header", "type": "Edm.String", "searchable": true, "filterable": true, "facetable": false, "sortable": true, "analyzer": "en.microsoft"},
     {"name": "content", "type": "Edm.String", "searchable": true, "filterable": false, "facetable": false, "sortable": false, "analyzer": "en.microsoft"},
     {"name": "contentVector", "type": "Collection(Edm.Single)", "searchable": true, "filterable": false, "sortable": false, "facetable": false, "dimensions": 1536, "vectorSearchProfile": "arb-vector-profile"},
     {"name": "category", "type": "Edm.String", "searchable": true, "filterable": true, "facetable": true, "sortable": true},
     {"name": "source_doc", "type": "Edm.String", "searchable": true, "filterable": true, "facetable": true, "sortable": true},
+    {"name": "source_doc_key", "type": "Edm.String", "searchable": false, "filterable": true, "facetable": false, "sortable": false},
     {"name": "chunk_index", "type": "Edm.Int32", "filterable": true, "sortable": true, "facetable": false, "searchable": false}
   ],
   "vectorSearch": {

@@ -118,7 +118,9 @@ architecture-review-board/
 
 Supported regions for Foundry v2 hosted prompt agents (gpt-5 family): `eastus2`, `swedencentral`, `westus3`, `switzerlandnorth`, `canadaeast`, `uksouth`, and others — see [Foundry model & region support](https://learn.microsoft.com/azure/ai-foundry/agents/concepts/model-region-support). **Canada Central works at the API level** but the Foundry portal will surface an "unsupported region" warning for the new agents view; toggle to the classic portal to see them.
 
-**Content Understanding (the CU skill) is regional too.** If your Foundry region doesn't support CU, set `FOUNDRY_CU_ENDPOINT` in `.env` to an AI Services account in a CU-supported region (Sweden Central, East US 2, West US 3 are reliable). The skillset will route CU calls there for billing while keeping chat + embeddings on the Foundry account.
+**Content Understanding (the CU skill) is regional too.** Set `FOUNDRY_CU_ENDPOINT` in `.env` to your Foundry v2 AI Services subdomain (`https://<account>.services.ai.azure.com/`). If your Foundry region doesn't support CU, point this at an AI Services account in a CU-supported region instead (Sweden Central, East US 2, West US 3 are reliable). The skillset will route CU + chat-completion calls there for billing while keeping embeddings on the Foundry account.
+
+> **Important:** the `services.ai.azure.com` subdomain is required. The legacy `cognitiveservices.azure.com` subdomain authenticates but the skillset's `AIServicesByIdentity` validator rejects it with `Unable to connect to AI Services using managed identity`.
 
 ## One-time setup
 
@@ -159,8 +161,11 @@ AZURE_TENANT_ID=<your-tenant-id>
 # AZURE_SEARCH_ENDPOINT=...
 # STORAGE_ACCOUNT_RESOURCE_ID=...
 # STORAGE_CONTAINER=arb-policies-source
-# Optional — set only if CU is unavailable in your Foundry region:
-# FOUNDRY_CU_ENDPOINT=https://<aiservices-in-cu-region>.cognitiveservices.azure.com/
+# Required — Foundry v2 AI Services subdomain for the skillset billing target.
+# Defaults to the same account as FOUNDRY_ENDPOINT, but must use the
+# services.ai.azure.com subdomain (NOT cognitiveservices.azure.com).
+# Override only if CU is unavailable in your Foundry region:
+# FOUNDRY_CU_ENDPOINT=https://<aiservices-in-cu-region>.services.ai.azure.com/
 ```
 
 `provision.py`, `app.py`, and `agents/config.py` all auto-load this file via `python-dotenv` — you do **not** need to export env vars by hand.
@@ -173,7 +178,7 @@ cd back-end
 python infra\provision.py
 ```
 
-Idempotent. Creates/reuses an AI Services account, chat + embeddings deployments, a Foundry v2 project, the Azure AI Search service, **and the storage account + container + RBAC needed by the pull pipeline**. RBAC roles are assigned to your signed-in user. Outputs to `back-end/.env.example` — copy the new values into the repo-root `.env`.
+Idempotent. Creates/reuses an AI Services account, chat + embeddings deployments, a Foundry v2 project, the Azure AI Search service, **and the storage account + container + RBAC needed by the pull pipeline**. RBAC roles are assigned to your signed-in user (Storage Blob Data Contributor on the storage account) and to the search service's system-assigned managed identity (Storage Blob Data Reader on the storage account + Cognitive Services User on the Foundry account, the latter required for the skillset's CU and chat-completion skills). Outputs to `back-end/.env.example` — copy the new values into the repo-root `.env`.
 
 ### 4. Provision the pull-mode indexer + run it
 

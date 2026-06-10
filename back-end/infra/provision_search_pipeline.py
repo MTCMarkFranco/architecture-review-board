@@ -60,6 +60,10 @@ ROLE_BLOB_CONTRIBUTOR = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"   # same role wor
 ROLE_BLOB_DATA_CONTRIBUTOR = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"  # placeholder — replaced in code below
 STORAGE_BLOB_DATA_READER_ID = "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1"
 STORAGE_BLOB_DATA_CONTRIBUTOR_ID = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+COGNITIVE_SERVICES_USER_ID = "a97b65f3-24c7-4388-baec-2e87135dc908"
+
+DEFAULT_FOUNDRY_RG = os.getenv("FOUNDRY_RESOURCE_GROUP", "rg-Foundry-cc")
+DEFAULT_FOUNDRY_ACCOUNT = os.getenv("FOUNDRY_ACCOUNT_NAME", "foundry-cc-canada")
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +177,14 @@ def ensure_container(account_name: str, container: str, dry_run: bool) -> None:
 
 
 def ensure_role_assignment(principal_id: str, role_id: str,
-                           scope: str, role_label: str, dry_run: bool) -> None:
-    """Idempotent role assignment. role_id is a built-in role definition GUID."""
+                           scope: str, role_label: str, dry_run: bool,
+                           principal_type: str = "ServicePrincipal") -> None:
+    """Idempotent role assignment. role_id is a built-in role definition GUID.
+
+    ``principal_type`` must be one of ``ServicePrincipal``, ``User``, or
+    ``Group`` — Entra object IDs are all 36-char GUIDs, so the type cannot
+    be inferred from the ID alone and must be supplied by the caller.
+    """
     if dry_run:
         log.info("[dry-run] Would assign %s to %s on %s",
                  role_label, principal_id, scope)
@@ -192,7 +202,7 @@ def ensure_role_assignment(principal_id: str, role_id: str,
     log.info("Assigning %s to %s on %s", role_label, principal_id, scope)
     _az("role", "assignment", "create",
         "--assignee-object-id", principal_id,
-        "--assignee-principal-type", "ServicePrincipal" if len(principal_id) == 36 else "User",
+        "--assignee-principal-type", principal_type,
         "--role", role_id,
         "--scope", scope)
 
@@ -242,6 +252,7 @@ def provision(dry_run: bool = False) -> dict:
         scope=storage_id,
         role_label="Storage Blob Data Reader",
         dry_run=dry_run,
+        principal_type="ServicePrincipal",
     )
 
     # Grant the signed-in user upload access (Contributor).
@@ -253,6 +264,23 @@ def provision(dry_run: bool = False) -> dict:
             scope=storage_id,
             role_label="Storage Blob Data Contributor (you)",
             dry_run=dry_run,
+            principal_type="User",
+        )
+
+    # Grant the search service Cognitive Services User on the Foundry account
+    # so AIServicesByIdentity in the skillset can call CU + chat completions.
+    foundry = _az_json("cognitiveservices", "account", "show",
+                       "--resource-group", DEFAULT_FOUNDRY_RG,
+                       "--name", DEFAULT_FOUNDRY_ACCOUNT,
+                       "--query", "id")
+    if isinstance(foundry, str):
+        ensure_role_assignment(
+            principal_id=search_principal,
+            role_id=COGNITIVE_SERVICES_USER_ID,
+            scope=foundry,
+            role_label="Cognitive Services User (search MI on Foundry)",
+            dry_run=dry_run,
+            principal_type="ServicePrincipal",
         )
 
     summary = {

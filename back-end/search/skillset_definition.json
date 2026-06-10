@@ -13,7 +13,6 @@
       "outputs": [
         { "name": "chunks", "targetName": "chunks" }
       ],
-      "outputFormat": "markdown",
       "chunkingProperties": {
         "unit": "characters",
         "maximumLength": 3500,
@@ -21,13 +20,12 @@
       }
     },
     {
-      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIChatCompletionSkill",
+      "@odata.type": "#Microsoft.Skills.Custom.ChatCompletionSkill",
       "name": "categorize-chunk",
       "description": "Assign each chunk a canonical PolicyCategory. Prompt is rendered from agents.categories.CATEGORIZE_SYSTEM_PROMPT; the build_indexer.py script substitutes the prompt at deploy time so the on-the-wire skillset stays byte-stable.",
       "context": "/document/chunks/*",
       "uri": "{{FOUNDRY_ENDPOINT}}openai/deployments/{{FOUNDRY_MODEL_DEPLOYMENT}}/chat/completions?api-version=2024-10-21",
       "authIdentity": null,
-      "timeout": "PT60S",
       "inputs": [
         { "name": "systemMessage", "source": "='{{CATEGORIZE_SYSTEM_PROMPT}}'" },
         { "name": "userMessage", "source": "/document/chunks/*/content" }
@@ -77,9 +75,7 @@
   "cognitiveServices": {
     "@odata.type": "#Microsoft.Azure.Search.AIServicesByIdentity",
     "subdomainUrl": "{{FOUNDRY_CU_ENDPOINT}}",
-    "identity": {
-      "@odata.type": "#Microsoft.Azure.Search.DataSystemAssignedIdentity"
-    },
+    "identity": null,
     "description": "Billing target for Content Understanding (CU) and chat-completion skills. Defaults to FOUNDRY_ENDPOINT (foundry-cc-canada). If CU is not supported in your Foundry region, set FOUNDRY_CU_ENDPOINT to an AI Services account in a CU-supported region (Sweden Central, East US 2, West US 3)."
   }
 }

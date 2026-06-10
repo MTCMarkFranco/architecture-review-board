@@ -400,7 +400,13 @@ def main() -> int:
         # first to use a friendlier name).
         if not args.dry_run and values["AZURE_SEARCH_ENDPOINT"]:
             try:
-                from infra.provision_search_pipeline import provision as provision_pipeline
+                try:
+                    from infra.provision_search_pipeline import provision as provision_pipeline
+                except ModuleNotFoundError:
+                    # Running as `python infra/provision.py` puts back-end/infra
+                    # on sys.path instead of back-end/, so the sibling module is
+                    # importable directly but the `infra` package is not.
+                    from provision_search_pipeline import provision as provision_pipeline  # type: ignore[no-redef]
                 pipeline = provision_pipeline(dry_run=False)
                 values["STORAGE_ACCOUNT_RESOURCE_ID"] = pipeline["storage_account_resource_id"]
                 values["STORAGE_CONTAINER"] = pipeline["storage_container"]

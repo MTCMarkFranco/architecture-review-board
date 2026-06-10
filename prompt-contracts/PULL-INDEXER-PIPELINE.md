@@ -189,11 +189,20 @@ def categories_for_prompt() -> str:
   },
   "cognitiveServices": {
     "@odata.type": "#Microsoft.Azure.Search.AIServicesByIdentity",
-    "subdomainUrl": "<FOUNDRY_ENDPOINT>",
-    "identity": { "@odata.type": "#Microsoft.Azure.Search.DataSystemAssignedIdentity" }
+    "subdomainUrl": "<FOUNDRY_CU_ENDPOINT>",
+    "identity": null
   }
 }
 ```
+
+> **Implementation notes (verified against API version `2025-11-01-preview`):**
+>
+> - `subdomainUrl` must be the **Foundry v2** AI Services subdomain (`https://<account>.services.ai.azure.com/`), **not** the legacy `cognitiveservices.azure.com` subdomain. The latter authenticates but does not satisfy the `AIServicesByIdentity` validator.
+> - For system-assigned managed identity, `identity` is the literal `null` (not a typed wrapper object). User-assigned MI uses `{ "@odata.type": "#Microsoft.Azure.Search.DataUserAssignedIdentity", "userAssignedIdentity": "<resourceId>" }`.
+> - `Microsoft.Skills.Util.ContentUnderstandingSkill` requires API version **`2025-11-01-preview`** or **`2026-04-01`** or later. The skill emits Markdown chunks by default — there is no `outputFormat` property.
+> - The chat-completion skill is `Microsoft.Skills.Custom.ChatCompletionSkill` (the `Microsoft.Skills.Text.AzureOpenAIChatCompletionSkill` type does not exist).
+> - The search service's system-assigned managed identity must have `Cognitive Services User` on the Foundry account (for CU + chat) **and** `Storage Blob Data Reader` on the source storage account. Both are granted by `infra/provision_search_pipeline.py`.
+> - The index key field (`id`) must be `searchable: true` with `analyzer: "keyword"` for index projections to bind the parent-key field. The schema must also include a filterable `Edm.String` field named `source_doc_key` (the projection's `parentKeyFieldName`).
 
 ## Edge cases & clarifications
 

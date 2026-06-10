@@ -21,7 +21,7 @@ See the [repo root README](../README.md) for the full end-to-end setup. This fil
 | `search/query.py` | Hybrid + semantic search wrapper |
 | `search/categorize.py` | Legacy keyword fallback only — superseded by the AOAI skill |
 | `infra/provision.py` | Idempotent Foundry + Search provisioning (chains the pipeline provisioner) |
-| `infra/provision_search_pipeline.py` | Idempotent storage account + container + RBAC for the pull pipeline |
+| `infra/provision_search_pipeline.py` | Idempotent storage account + container + RBAC for the pull pipeline (grants the search MI `Storage Blob Data Reader` on the storage account and `Cognitive Services User` on the Foundry account) |
 | `infra/create_agents.py` | Create/version `ValidateArbAgent` + `IacGeneratorAgent` |
 | `file_processing/parsing.py` | docx + pdf parsing |
 | `tests/` | pytest suite |
@@ -78,7 +78,7 @@ All are read from the repo-root `.env` via `python-dotenv`. The required runtime
 | `FOUNDRY_MODEL_DEPLOYMENT` | provision.py output | deployment name (e.g. `gpt-5.3-chat-1`) |
 | `FOUNDRY_EMBEDDINGS_DEPLOYMENT` | provision.py output | `text-embedding-3-large` |
 | `FOUNDRY_ENDPOINT` | provision.py output | account endpoint (for embeddings + chat) |
-| `FOUNDRY_CU_ENDPOINT` | manual override | Optional. Defaults to `FOUNDRY_ENDPOINT`. Set when CU is not available in your Foundry region |
+| `FOUNDRY_CU_ENDPOINT` | manual | **Required.** Foundry v2 AI Services subdomain (`https://<account>.services.ai.azure.com/`) used as the skillset billing target. Do **not** use the `cognitiveservices.azure.com` subdomain — it fails `AIServicesByIdentity` validation. Set this to a CU-supported region (Sweden Central, East US 2, West US 3) if CU is unavailable in your Foundry region |
 | `AZURE_SEARCH_ENDPOINT` | provision.py output | search service URL |
 | `AZURE_SEARCH_INDEX` | optional | defaults to `arb-policies` |
 | `STORAGE_ACCOUNT_RESOURCE_ID` | provision.py output | full ARM id of the source-blob storage account |
