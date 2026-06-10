@@ -1,0 +1,181 @@
+openapi: "3.0.3"
+info:
+  title: ARB Bot Skill API
+  description: |
+    Validates architecture solution design (ASD/PSA) documents against enterprise
+    policies and generates Infrastructure-as-Code (Terraform) scripts.
+    Designed for consumption as a Copilot Studio custom skill.
+  version: "1.0.0"
+
+servers:
+  - url: https://arb-bot.azurewebsites.net
+
+security:
+  - entraId: []
+
+paths:
+  /api/validate:
+    post:
+      operationId: validateArchitectureDocument
+      summary: Validate an architecture document against policies
+      description: |
+        Accepts a PDF or DOCX architecture document (base64-encoded) and validates
+        it against enterprise architecture policies. Returns a list of findings
+        including violations, deviations, suggestions, and missing items.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileUploadRequest"
+      responses:
+        "200":
+          description: Validation findings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/geniac:
+    post:
+      operationId: generateInfrastructureAsCode
+      summary: Generate Terraform IaC from an architecture document
+      description: |
+        Accepts a PDF or DOCX architecture document (base64-encoded) and generates
+        starter Terraform scripts based on the infrastructure described in the document.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileUploadRequest"
+      responses:
+        "200":
+          description: Generated Terraform scripts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenIacResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      description: Returns the service health status. No authentication required.
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  service:
+                    type: string
+                    example: "arb-bot"
+
+components:
+  securitySchemes:
+    entraId:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.microsoftonline.com/d7d6e19e-5176-4dea-a576-1681f77e0243/oauth2/v2.0/authorize
+          tokenUrl: https://login.microsoftonline.com/d7d6e19e-5176-4dea-a576-1681f77e0243/oauth2/v2.0/token
+          scopes:
+            api://1479febe-0aa9-4a00-a1bf-1d32b5fca737/access_as_user: Access ARB Bot API
+
+  schemas:
+    FileUploadRequest:
+      type: object
+      required:
+        - file_base64
+        - filename
+      properties:
+        file_base64:
+          type: string
+          description: Base64-encoded content of the PDF or DOCX file.
+        filename:
+          type: string
+          description: Original filename including extension (.pdf or .docx).
+          example: "architecture-design.pdf"
+
+    ValidateResponse:
+      type: object
+      properties:
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+
+    Finding:
+      type: object
+      properties:
+        Type:
+          type: string
+          enum: [Violation, Deviation, Suggestion, Missing, Error]
+          description: Severity/type of the finding.
+        Issue:
+          type: string
+          description: Short title of the issue.
+        Description:
+          type: string
+          description: Detailed description of the finding.
+        Principles:
+          type: string
+          description: The policy principle that was violated or is relevant.
+        Mandatory:
+          type: boolean
+          description: Whether this is a mandatory policy requirement.
+        Category:
+          type: string
+          description: Policy category (e.g., Network, Security and Governance).
+
+    GenIacResponse:
+      type: object
+      properties:
+        scripts:
+          type: array
+          items:
+            type: string
+          description: List of Terraform script strings, each starting with a component comment.
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string

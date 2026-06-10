@@ -14,6 +14,13 @@ requests>=2.31.0
 flask>=3.0.0
 flask-cors>=4.0.0
 
+# Bot Framework (Copilot Studio Skill)
+botbuilder-core>=4.14.0
+botbuilder-integration-aiohttp>=4.14.0
+
+# Auth (Entra ID OAuth)
+PyJWT[crypto]>=2.8.0
+
 # Document parsing
 PyMuPDF>=1.23.26
 python-docx>=1.1.0

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schemas.botframework.com/schemas/skills/v2.2/skill-manifest.json",
+  "$id": "ARBBot",
+  "name": "ARB Bot",
+  "version": "1.0.0",
+  "description": "Validates architecture solution design documents against enterprise policies and generates Infrastructure-as-Code (Terraform) scripts.",
+  "publisherName": "Microsoft",
+  "privacyUrl": "https://arb-bot.azurewebsites.net/terms",
+  "copyright": "Copyright (c) Microsoft Corporation. All rights reserved.",
+  "license": "",
+  "iconUrl": "https://arb-bot.azurewebsites.net/static/logo.png",
+  "tags": [
+    "architecture",
+    "validation",
+    "terraform",
+    "iac"
+  ],
+  "endpoints": [
+    {
+      "name": "default",
+      "protocol": "BotFrameworkV3",
+      "description": "Default endpoint for the ARB Bot skill",
+      "endpointUrl": "https://arb-bot.azurewebsites.net/api/messages",
+      "msAppId": "1479febe-0aa9-4a00-a1bf-1d32b5fca737"
+    }
+  ],
+  "activities": {
+    "validateArchitectureDocument": {
+      "description": "Validate an architecture document (PDF or DOCX) against enterprise policies. Returns findings including violations, deviations, suggestions, and missing items.",
+      "type": "event",
+      "name": "validateArchitectureDocument",
+      "value": {
+        "$ref": "#/definitions/fileUploadRequest"
+      },
+      "resultValue": {
+        "$ref": "#/definitions/validateResponse"
+      }
+    },
+    "generateInfrastructureAsCode": {
+      "description": "Generate starter Terraform IaC scripts from an architecture document (PDF or DOCX).",
+      "type": "event",
+      "name": "generateInfrastructureAsCode",
+      "value": {
+        "$ref": "#/definitions/fileUploadRequest"
+      },
+      "resultValue": {
+        "$ref": "#/definitions/genIacResponse"
+      }
+    }
+  },
+  "definitions": {
+    "fileUploadRequest": {
+      "type": "object",
+      "properties": {
+        "file_base64": {
+          "type": "string",
+          "description": "Base64-encoded content of the PDF or DOCX file."
+        },
+        "filename": {
+          "type": "string",
+          "description": "Original filename including extension (.pdf or .docx)."
+        }
+      }
+    },
+    "validateResponse": {
+      "type": "object",
+      "properties": {
+        "findings": {
+          "type": "string",
+          "description": "JSON-serialized array of finding objects with Type, Issue, Description, Principles, Mandatory, and Category fields."
+        }
+      }
+    },
+    "genIacResponse": {
+      "type": "object",
+      "properties": {
+        "scripts": {
+          "type": "string",
+          "description": "JSON-serialized array of Terraform script strings."
+        }
+      }
+    }
+  }
+}

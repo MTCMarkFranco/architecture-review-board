@@ -221,6 +221,7 @@ def main() -> int:
         "FOUNDRY_CU_ENDPOINT": cu_endpoint,
         "FOUNDRY_MODEL_DEPLOYMENT": _require_env("FOUNDRY_MODEL_DEPLOYMENT"),
         "FOUNDRY_EMBEDDINGS_DEPLOYMENT": _require_env("FOUNDRY_EMBEDDINGS_DEPLOYMENT"),
+        "COGNITIVE_SERVICES_KEY": _require_env("COGNITIVE_SERVICES_KEY"),
         "STORAGE_ACCOUNT_RESOURCE_ID": _require_env("STORAGE_ACCOUNT_RESOURCE_ID"),
         "STORAGE_CONTAINER": DEFAULT_CONTAINER,
         # The categorize prompt is JSON-escaped so it survives substitution

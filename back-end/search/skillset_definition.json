@@ -72,9 +72,9 @@
     }
   },
   "cognitiveServices": {
-    "@odata.type": "#Microsoft.Azure.Search.AIServicesByIdentity",
+    "@odata.type": "#Microsoft.Azure.Search.CognitiveServicesByKey",
+    "key": "{{COGNITIVE_SERVICES_KEY}}",
     "subdomainUrl": "{{FOUNDRY_CU_ENDPOINT}}",
-    "identity": null,
-    "description": "Billing target for the Document Intelligence layout skill + the chat-completion skill. Defaults to FOUNDRY_ENDPOINT (foundry-cc-canada multi-service AI Services account)."
+    "description": "Billing target for the Document Intelligence layout skill + the chat-completion skill. Uses key auth because the billing API does not support managed identity CheckAccess in locked-down environments."
   }
 }
