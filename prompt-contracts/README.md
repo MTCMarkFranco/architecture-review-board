@@ -24,6 +24,7 @@ Each contract is one Markdown file named after the work item (UPPER-KEBAB-CASE) 
 | [`POLICIES-DOC.md`](POLICIES-DOC.md) | #17 | `branch-policies-doc-1` |
 | [`TEST-INGEST.md`](TEST-INGEST.md) | #18 | `branch-test-ingest-1` |
 | [`TEST-ASD.md`](TEST-ASD.md) | #19 | `branch-test-asd-1` |
+| [`CATEGORIZER-FIX.md`](CATEGORIZER-FIX.md) | #71 | `branch-categorizer-fix-1` |
 
 ## Branching choice
 
