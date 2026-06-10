@@ -33,6 +33,55 @@ _CLIENT_CACHE: dict[str, Any] = {}
 _CLIENT_LOCK = threading.Lock()
 
 
+# Characters stripped from the start/end of a raw model response before parsing.
+# Covers common malformed outputs: leading bullets, surrounding quotes, trailing
+# punctuation, stray whitespace.
+_STRIP_CHARS = " \t\n\r-*•·\"'`.,:;!?()[]{}<>"
+
+
+def _strip_to_category(raw: str) -> str:
+    """Best-effort cleanup of a raw AOAI categorize response.
+
+    Handles model outputs that wrap or decorate the category name:
+
+    * leading/trailing whitespace
+    * leading bullet, dash, or asterisk
+    * surrounding single/double/back quotes
+    * trailing punctuation (``.``, ``,``, ``;``, ``!``, ``?``)
+    * JSON envelopes like ``{"category": "Network"}`` or ``["Network"]``
+    * multi-line responses where only the first line is the answer
+
+    Returns the cleaned string, empty if cleanup leaves nothing.
+    """
+    if not raw:
+        return ""
+    s = raw.strip()
+    # Drop everything after the first newline — the answer should be one line.
+    if "\n" in s:
+        s = s.split("\n", 1)[0].strip()
+    # Try JSON envelope first; fall through to char-strip if it doesn't parse.
+    if s.startswith(("{", "[")):
+        import json
+        try:
+            obj = json.loads(s)
+            if isinstance(obj, dict):
+                # Common shapes: {"category": "X"}, {"value": "X"}, single-key.
+                for key in ("category", "value", "label", "name"):
+                    if key in obj and isinstance(obj[key], str):
+                        s = obj[key]
+                        break
+                else:
+                    if len(obj) == 1:
+                        only = next(iter(obj.values()))
+                        if isinstance(only, str):
+                            s = only
+            elif isinstance(obj, list) and obj and isinstance(obj[0], str):
+                s = obj[0]
+        except (ValueError, TypeError):
+            pass
+    return s.strip(_STRIP_CHARS).strip()
+
+
 def _get_aoai_client(endpoint: str) -> Any:
     cached = _CLIENT_CACHE.get(endpoint)
     if cached is not None:
@@ -68,17 +117,26 @@ def categorize_chunk(text: str) -> PolicyCategory:
         raise RuntimeError(
             "FOUNDRY_ENDPOINT not set; required for categorization."
         )
-    deployment = os.getenv("FOUNDRY_MODEL_DEPLOYMENT", "").strip()
+    # Allow a dedicated lighter deployment for the per-chunk categorize call
+    # (e.g. gpt-5.4-mini) so we don't pay reasoning-model latency on a label
+    # picking task. Falls back to the main agent deployment when unset.
+    deployment = (
+        os.getenv("FOUNDRY_CATEGORIZE_DEPLOYMENT", "").strip()
+        or os.getenv("FOUNDRY_MODEL_DEPLOYMENT", "").strip()
+    )
     if not deployment:
         raise RuntimeError(
-            "FOUNDRY_MODEL_DEPLOYMENT not set; required for categorization."
+            "FOUNDRY_CATEGORIZE_DEPLOYMENT or FOUNDRY_MODEL_DEPLOYMENT must be "
+            "set; required for categorization."
         )
 
     client = _get_aoai_client(endpoint)
     # gpt-5 family rejects the legacy ``max_tokens`` parameter (needs
     # ``max_completion_tokens``) AND rejects non-default temperature. The
     # CATEGORIZE_SYSTEM_PROMPT is explicit enough that the model picks a
-    # category reliably at default temperature.
+    # category reliably at default temperature. The 64-token budget gives the
+    # gpt-5 reasoning family room for a tiny reasoning pre-token sequence on
+    # top of the one-name answer.
     try:
         resp = client.chat.completions.create(
             model=deployment,
@@ -86,7 +144,7 @@ def categorize_chunk(text: str) -> PolicyCategory:
                 {"role": "system", "content": CATEGORIZE_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
             ],
-            max_completion_tokens=24,
+            max_completion_tokens=64,
         )
     except TypeError:
         # Older openai SDK before max_completion_tokens was added.
@@ -96,10 +154,14 @@ def categorize_chunk(text: str) -> PolicyCategory:
                 {"role": "system", "content": CATEGORIZE_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
             ],
-            max_tokens=24,
+            max_tokens=64,
         )
     raw = (resp.choices[0].message.content or "").strip()
-    cat = parse_category(raw)
-    if cat is PolicyCategory.GENERAL and raw and raw.lower() != "general":
-        log.warning("Unparseable categorize response %r — defaulting to GENERAL", raw)
+    cleaned = _strip_to_category(raw)
+    cat = parse_category(cleaned)
+    if cat is PolicyCategory.GENERAL and cleaned and cleaned.lower() != "general":
+        log.warning(
+            "Unparseable categorize response %r (cleaned=%r) — defaulting to GENERAL",
+            raw, cleaned,
+        )
     return cat

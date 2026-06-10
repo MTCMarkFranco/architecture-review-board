@@ -76,6 +76,7 @@ All are read from the repo-root `.env` via `python-dotenv`. The required runtime
 | `AZURE_TENANT_ID` | `az account show` | |
 | `FOUNDRY_PROJECT_ENDPOINT` | provision.py output | Foundry project URL |
 | `FOUNDRY_MODEL_DEPLOYMENT` | provision.py output | deployment name (e.g. `gpt-5.3-chat-1`) |
+| `FOUNDRY_CATEGORIZE_DEPLOYMENT` | optional | dedicated faster deployment for per-chunk categorize (e.g. `gpt-5.4-mini`); falls back to `FOUNDRY_MODEL_DEPLOYMENT` |
 | `FOUNDRY_EMBEDDINGS_DEPLOYMENT` | provision.py output | `text-embedding-3-large` |
 | `FOUNDRY_ENDPOINT` | provision.py output | account endpoint (for embeddings + chat) |
 | `FOUNDRY_CU_ENDPOINT` | manual | **Required.** Foundry v2 AI Services subdomain (`https://<account>.services.ai.azure.com/`) used as the skillset billing target. Do **not** use the `cognitiveservices.azure.com` subdomain — it fails `AIServicesByIdentity` validation. Set this to a CU-supported region (Sweden Central, East US 2, West US 3) if CU is unavailable in your Foundry region |
@@ -85,7 +86,7 @@ All are read from the repo-root `.env` via `python-dotenv`. The required runtime
 | `STORAGE_CONTAINER` | optional | defaults to `arb-policies-source` |
 | `VALIDATE_AGENT_NAME` | optional | defaults to `ValidateArbAgent` |
 | `IAC_AGENT_NAME` | optional | defaults to `IacGeneratorAgent` |
-| `WORKFLOW_TIMEOUT_SECONDS` | optional | defaults to `60`; bump for full-doc runs |
+| `WORKFLOW_TIMEOUT_SECONDS` | optional | defaults to `60`; bump to `180` for full-doc runs |
 
 ## Endpoints
 

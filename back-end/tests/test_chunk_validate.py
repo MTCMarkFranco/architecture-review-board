@@ -121,24 +121,28 @@ class _FakeChatResp:
 
 
 class _FakeChat:
-    def __init__(self, reply):
+    def __init__(self, reply, calls=None):
         self._reply = reply
+        self._calls = calls
 
     class _Completions:
-        def __init__(self, reply):
+        def __init__(self, reply, calls):
             self._reply = reply
+            self._calls = calls
 
-        def create(self, **_kw):
+        def create(self, **kw):
+            if self._calls is not None:
+                self._calls.append(kw)
             return _FakeChatResp(self._reply)
 
     @property
     def completions(self):
-        return _FakeChat._Completions(self._reply)
+        return _FakeChat._Completions(self._reply, self._calls)
 
 
 class _FakeChatAOAI:
-    def __init__(self, reply):
-        self.chat = _FakeChat(reply)
+    def __init__(self, reply, calls=None):
+        self.chat = _FakeChat(reply, calls)
 
 
 @pytest.fixture
@@ -167,6 +171,37 @@ def test_categorize_chunk_unknown_value_falls_back_to_general(
 def test_categorize_chunk_empty_text_short_circuits(_patch_categorize_env):
     assert categorize_chunk.categorize_chunk("") is PolicyCategory.GENERAL
     assert categorize_chunk.categorize_chunk("   ") is PolicyCategory.GENERAL
+
+
+def test_categorize_chunk_prefers_categorize_deployment_env(
+    monkeypatch, _patch_categorize_env
+):
+    monkeypatch.setenv("FOUNDRY_CATEGORIZE_DEPLOYMENT", "gpt-categorize-mini")
+    calls: list[dict] = []
+    monkeypatch.setattr(categorize_chunk, "_get_aoai_client",
+                        lambda endpoint: _FakeChatAOAI("Network", calls))
+    categorize_chunk.categorize_chunk("hub-spoke vnet")
+    assert calls and calls[0]["model"] == "gpt-categorize-mini"
+
+
+def test_categorize_chunk_falls_back_to_main_deployment(
+    monkeypatch, _patch_categorize_env
+):
+    monkeypatch.delenv("FOUNDRY_CATEGORIZE_DEPLOYMENT", raising=False)
+    calls: list[dict] = []
+    monkeypatch.setattr(categorize_chunk, "_get_aoai_client",
+                        lambda endpoint: _FakeChatAOAI("Network", calls))
+    categorize_chunk.categorize_chunk("hub-spoke vnet")
+    assert calls and calls[0]["model"] == "gpt-test"
+
+
+def test_categorize_chunk_raises_when_no_deployment_env(monkeypatch):
+    monkeypatch.setenv("FOUNDRY_ENDPOINT", "https://test/")
+    monkeypatch.delenv("FOUNDRY_MODEL_DEPLOYMENT", raising=False)
+    monkeypatch.delenv("FOUNDRY_CATEGORIZE_DEPLOYMENT", raising=False)
+    categorize_chunk._CLIENT_CACHE.clear()
+    with pytest.raises(RuntimeError, match="DEPLOYMENT"):
+        categorize_chunk.categorize_chunk("some text")
 
 
 # ---------------------------------------------------------------------------
