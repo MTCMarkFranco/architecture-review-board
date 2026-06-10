@@ -71,8 +71,13 @@ def stub_orchestrator(monkeypatch):
         assert isinstance(arb, dict)
         return list(_STUB_IAC)
 
+    async def _iac_bytes(self, file_bytes, filename=None):  # noqa: ARG001
+        assert isinstance(file_bytes, bytes)
+        return list(_STUB_IAC)
+
     monkeypatch.setattr(ArbWorkflow, "validate", _validate, raising=True)
     monkeypatch.setattr(ArbWorkflow, "iac", _iac, raising=True)
+    monkeypatch.setattr(ArbWorkflow, "iac_bytes", _iac_bytes, raising=True)
     monkeypatch.setattr(
         app_module, "_parse_uploaded", lambda _f: dict(_STUB_ARB), raising=True
     )

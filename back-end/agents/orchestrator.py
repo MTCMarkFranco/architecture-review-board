@@ -20,7 +20,7 @@ from typing import Any
 
 from .config import Config
 from .errors import WorkflowError, WorkflowTimeoutError
-from .iac_agent import generate_iac
+from .iac_agent import generate_iac, generate_iac_from_bytes
 from .resilience import CircuitBreaker, async_retry_with_backoff
 from .validate_agent import (
     build_project_client,
@@ -136,6 +136,35 @@ class ArbWorkflow:
         except Exception as e:  # noqa: BLE001
             raise WorkflowError(f"iac failed: {e}") from e
         logger.info("[ARB:%s] iac ok in %.2fs (%d scripts)",
+                    cid, time.monotonic() - start, len(result))
+        return result
+
+    async def iac_bytes(self, file_bytes: bytes,
+                        filename: str | None = None) -> list[str]:
+        """Chunk-based IaC generation from raw file bytes."""
+        cid = uuid.uuid4().hex[:8]
+        start = time.monotonic()
+        logger.info("[ARB:%s] iac_bytes start filename=%s bytes=%d",
+                    cid, filename, len(file_bytes))
+        try:
+            result = await async_retry_with_backoff(
+                lambda: asyncio.wait_for(
+                    generate_iac_from_bytes(file_bytes, filename,
+                                           self.config, self._get_client()),
+                    timeout=self.config.timeout_seconds,
+                ),
+                max_retries=self.config.retry_count,
+                base_delay=self.config.retry_base_delay,
+                deadline=self.config.timeout_seconds,
+                circuit_breaker=self._breaker,
+            )
+        except asyncio.TimeoutError as e:
+            raise WorkflowTimeoutError(self.config.timeout_seconds) from e
+        except WorkflowError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise WorkflowError(f"iac failed: {e}") from e
+        logger.info("[ARB:%s] iac_bytes ok in %.2fs (%d scripts)",
                     cid, time.monotonic() - start, len(result))
         return result
 

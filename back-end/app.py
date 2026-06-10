@@ -125,11 +125,13 @@ def geniac():
     f = request.files["file"]
     if not f.filename:
         return jsonify({"error": "no_filename"}), 400
-    try:
-        arb = _parse_uploaded(f)
-    except ValueError as e:
-        return jsonify({"error": "bad_request", "message": str(e)}), 400
-    scripts = _run(_get_workflow().iac(arb))
+    name = (f.filename or "").lower()
+    if not (name.endswith(".pdf") or name.endswith(".docx")):
+        return jsonify({"error": "bad_request",
+                        "message": f"Unsupported file extension: {name!r}; "
+                                   f"expected .pdf or .docx"}), 400
+    file_bytes = f.read()
+    scripts = _run(_get_workflow().iac_bytes(file_bytes, f.filename))
     return jsonify(scripts)
 
 

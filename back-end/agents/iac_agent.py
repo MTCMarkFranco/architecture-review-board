@@ -79,3 +79,39 @@ async def generate_iac(
     except AgentInvocationError:
         raise
     return _parse_scripts(raw)
+
+
+async def generate_iac_from_bytes(
+    file_bytes: bytes,
+    filename: str | None = None,
+    config: Config | None = None,
+    client: Any | None = None,
+) -> list[str]:
+    """Chunk-based IaC generation that works with any document format.
+
+    Uses Azure Document Intelligence to semantically chunk the uploaded file
+    (same approach as validate_arb_chunks), then feeds the full document
+    content to the IaC agent.
+    """
+    from .asd_chunker import chunk_asd_document
+
+    cfg = config or Config()
+    cli = client or build_project_client(cfg)
+
+    # Crack the document into semantic chunks via Document Intelligence.
+    chunks = await asyncio.get_running_loop().run_in_executor(
+        None, lambda: chunk_asd_document(file_bytes, filename)
+    )
+    if not chunks:
+        return []
+
+    content = "\n\n".join(chunks)
+    if not content.strip():
+        return []
+
+    prompt = f"{SYSTEM_PROMPT}\n\n[Content]\n{content}\n"
+    try:
+        raw = await _call_agent(cli, cfg.iac_agent_name, prompt, cfg)
+    except AgentInvocationError:
+        raise
+    return _parse_scripts(raw)
