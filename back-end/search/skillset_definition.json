@@ -37,12 +37,11 @@
     {
       "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
       "name": "embed-chunk",
-      "description": "Vectorize each chunk via the Foundry embeddings deployment. dimensions=1536 must match the existing index schema.",
+      "description": "Vectorize each chunk via the Foundry embeddings deployment. text-embedding-3-large is native 3072 dims — the index schema's contentVector field is 3072 to match. We deliberately do NOT pass `dimensions` here: the skill's `dimensions` field is a projection hint that the underlying deployment may silently ignore, leaving us with 3072-dim vectors flowing into a 1536 field (silent index-projection failure, empty index). Letting the model emit its native 3072 keeps the contract honest end-to-end.",
       "context": "/document/chunks/*",
       "resourceUri": "{{FOUNDRY_ENDPOINT}}",
       "deploymentId": "{{FOUNDRY_EMBEDDINGS_DEPLOYMENT}}",
       "modelName": "text-embedding-3-large",
-      "dimensions": 1536,
       "authIdentity": null,
       "inputs": [
         { "name": "text", "source": "/document/chunks/*/content" }

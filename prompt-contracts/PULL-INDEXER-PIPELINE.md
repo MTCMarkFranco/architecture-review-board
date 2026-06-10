@@ -166,7 +166,7 @@ def categories_for_prompt() -> str:
       "inputs":  [{ "name": "text", "source": "/document/chunks/*/content" }],
       "outputs": [{ "name": "embedding", "targetName": "contentVector" }],
       "deploymentId": "text-embedding-3-large",
-      "dimensions": 1536
+      "modelName": "text-embedding-3-large"
     }
   ],
   "indexProjections": {
@@ -207,7 +207,7 @@ def categories_for_prompt() -> str:
 ## Edge cases & clarifications
 
 1. **CU regional availability** — CU is not GA in every region. If Canada Central is unsupported, fall back to **Sweden Central / West US 3** for the AI Services account that hosts CU, and reference it via the skillset's `cognitiveServices` attachment. **Open question** below.
-2. **Embedding skill `dimensions=1536`** must match the existing index schema. Already 1536 — don't change.
+2. **Embedding skill dimensions** — `text-embedding-3-large` native is **3072**. The index schema's `contentVector` field is 3072 to match, and the embedding skill deliberately does NOT pass `dimensions` (it is a projection hint that some deployments silently ignore — passing 1536 to a 3072-native model can leave 3072-dim vectors flowing into a 1536 field, causing silent index-projection failures and an empty index). If you switch to `text-embedding-3-small`, drop the schema to 1536 in the same change.
 3. **Category enum drift** — `PolicyCategory` must be in sync with the AOAI prompt and the search index `category` field's allowed values. Add an integration test that asserts every value emitted by AOAI for a fixture chunk parses into `PolicyCategory`.
 4. **AOAI categorize prompt drift** — emitted by `categories_for_prompt()`. A unit test must assert the rendered string is stable byte-for-byte across runs (so the indexer cache doesn't unnecessarily invalidate).
 5. **Idempotent indexer reruns** — `--purge` flag on `build_indexer.py` should call the existing `purge_index_documents()` before running so blob replacements don't leave orphaned chunks.

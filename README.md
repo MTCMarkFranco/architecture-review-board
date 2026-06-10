@@ -203,7 +203,7 @@ python -m search.build_indexer --run
 The pull pipeline:
 1. **Cracks + chunks** each blob via the Content Understanding skill (`maximumLength=3500`, `overlapLength=200`).
 2. **Categorizes** each chunk via an Azure OpenAI chat completion skill using `agents.categories.CATEGORIZE_SYSTEM_PROMPT`. The taxonomy is the canonical `PolicyCategory` enum — same one used by validate and IaC.
-3. **Embeds** each chunk via `text-embedding-3-large` (1536 dims to match the index schema).
+3. **Embeds** each chunk via `text-embedding-3-large` (3072 dims — native — matching the index schema's `contentVector` field).
 4. **Projects** each chunk into its own `arb-policies` index document.
 
 ⚠️ **Cost note:** CU is billed per page; AOAI chat per token (categorize prompt is ~150 tokens output max); embeddings per token. For one ~30-section policy docx this is well under $1 per full re-ingest.
