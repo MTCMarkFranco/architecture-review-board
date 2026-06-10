@@ -1,0 +1,629 @@
+{
+  "doc": "file_processing\\data\\sample_asd.docx",
+  "chunk_count_total": 5,
+  "top_k": 8,
+  "chunks": [
+    {
+      "idx": 0,
+      "chunk_chars": 120,
+      "chunk_preview": "# Project Aurora — Architecture Solution Design  Sections: Summary, Solution Requirements, Proposed Solution  ## Summary",
+      "category": "general",
+      "vector_dim": 3072,
+      "filter_dropped_reason": "general",
+      "filtered_hits": 8,
+      "used_unfiltered_fallback": false,
+      "final_hits": 8,
+      "top_hits": [
+        {
+          "header": null,
+          "category": "Operational Excellence",
+          "rerank": 1.5293,
+          "score": 0.0152,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_3"
+        },
+        {
+          "header": null,
+          "category": "Storage and Data",
+          "rerank": 1.3754,
+          "score": 0.0154,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_3"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.3719,
+          "score": 0.0328,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.3719,
+          "score": 0.0328,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.3719,
+          "score": 0.0314,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.3669,
+          "score": 0.0143,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_3"
+        },
+        {
+          "header": null,
+          "category": "AI Workloads",
+          "rerank": 1.1323,
+          "score": 0.0149,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_6"
+        },
+        {
+          "header": null,
+          "category": "AI Workloads",
+          "rerank": 1.1323,
+          "score": 0.0139,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_6"
+        }
+      ],
+      "findings_count": 0,
+      "findings_by_type": {},
+      "findings": [],
+      "elapsed_s": 17.38
+    },
+    {
+      "idx": 1,
+      "chunk_chars": 2131,
+      "chunk_preview": "### Introduction  Project Aurora is a fictional inventory analytics platform supporting regional warehouses. This document describes the proposed cloud architec",
+      "category": "general",
+      "vector_dim": 3072,
+      "filter_dropped_reason": "general",
+      "filtered_hits": 8,
+      "used_unfiltered_fallback": false,
+      "final_hits": 8,
+      "top_hits": [
+        {
+          "header": null,
+          "category": "Operational Excellence",
+          "rerank": 1.759,
+          "score": 0.0313,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_3"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.7221,
+          "score": 0.0328,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.7221,
+          "score": 0.0315,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.7221,
+          "score": 0.0302,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Storage and Data",
+          "rerank": 1.7001,
+          "score": 0.0323,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_3"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.6505,
+          "score": 0.0318,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_3"
+        },
+        {
+          "header": null,
+          "category": "Storage and Data",
+          "rerank": 1.5066,
+          "score": 0.0145,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_1"
+        },
+        {
+          "header": null,
+          "category": "Storage and Data",
+          "rerank": 1.5066,
+          "score": 0.0143,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_1"
+        }
+      ],
+      "findings_count": 13,
+      "findings_by_type": {
+        "Missing": 12,
+        "Deviation": 1
+      },
+      "findings": [
+        {
+          "Type": "Missing",
+          "Issue": "Secrets management not defined",
+          "Description": "The section does not specify that secrets (connection strings, API keys, certificates) are stored in Azure Key Vault and referenced by applications rather than embedded in configuration.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Data classification inventory not addressed",
+          "Description": "The architecture description does not mention maintaining a data inventory mapping datasets to sensitivity tiers (public, internal, confidential, restricted) to drive encryption, retention, and egress controls.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Deviation",
+          "Issue": "Customer-managed key usage not clearly specified",
+          "Description": "Security requirements mention customer-managed keys but do not specify their use through Azure Key Vault Premium with HSM-backed keys or indicate how encryption requirements will vary by data classification tier.",
+          "Principles": "Storage and Data",
+          "Mandatory": false,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Database private networking and access controls not specified",
+          "Description": "The database requirement mentions managed Postgres with cross-region replicas but does not state that it will be deployed with Private Endpoints and no public access as required.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Database authentication model not defined",
+          "Description": "The section does not state that database authentication will use Microsoft Entra ID only with SQL logins and built-in admin accounts disabled after bootstrap.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Centralized Azure monitoring architecture not defined",
+          "Description": "Supportability requirements mention centralized logging but do not specify telemetry flowing to a central Log Analytics workspace with workspace-based Application Insights for application telemetry.",
+          "Principles": "Operational Excellence",
+          "Mandatory": true,
+          "Category": "Operational Excellence"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Platform diagnostic settings requirement not addressed",
+          "Description": "The section does not specify that diagnostic settings must be enabled on every Azure resource and forward activity logs, resource logs, and metrics to Log Analytics via Azure Policy.",
+          "Principles": "Operational Excellence",
+          "Mandatory": true,
+          "Category": "Operational Excellence"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Security analytics integration not described",
+          "Description": "The architecture does not reference Microsoft Sentinel integration with the Log Analytics workspace and connectors for services such as Microsoft Entra ID and Defender for Cloud.",
+          "Principles": "Operational Excellence",
+          "Mandatory": false,
+          "Category": "Operational Excellence"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Mandatory tagging strategy not defined",
+          "Description": "The document does not mention the required tagging model (costCenter, owner, environment, workload, dataClassification, slaTier) or enforcement through Azure Policy.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Budget and cost governance controls not defined",
+          "Description": "The section does not address subscription/workload budgets, cost alerts at 50/80/100 percent, or FinOps reporting practices required by the policy.",
+          "Principles": "Reliability",
+          "Mandatory": false,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Resource naming convention not addressed",
+          "Description": "The architecture document does not specify the deterministic resource naming pattern (<resourceType>-<workload>-<environment>-<region>-<instance>) required for Azure resources.",
+          "Principles": "Reliability",
+          "Mandatory": false,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Backup vault architecture not defined",
+          "Description": "Although RPO and RTO are declared, the section does not describe the use of Azure Backup, Recovery Services Vaults or Backup Vaults with diagnostics forwarded to the central workspace.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Backup credential isolation not described",
+          "Description": "The design does not mention storing backup credentials and recovery keys in a separate Key Vault from production keys to reduce blast radius.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        }
+      ],
+      "elapsed_s": 32.82
+    },
+    {
+      "idx": 2,
+      "chunk_chars": 1017,
+      "chunk_preview": "## EC2 Sizing/Specifications (Guidance on OS Volumes & MS Office Support)   <table> <tr> <th>Environment</th> <th>Account Type</th> <th>Network Zone</th> <th>AW",
+      "category": "general",
+      "vector_dim": 3072,
+      "filter_dropped_reason": "general",
+      "filtered_hits": 8,
+      "used_unfiltered_fallback": false,
+      "final_hits": 8,
+      "top_hits": [
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.5236,
+          "score": 0.0315,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.5236,
+          "score": 0.0311,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.5236,
+          "score": 0.0304,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.3818,
+          "score": 0.0164,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_2"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.3818,
+          "score": 0.0152,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_2"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.3818,
+          "score": 0.0141,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_2"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.3634,
+          "score": 0.0167,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_5"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.3634,
+          "score": 0.0145,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_5"
+        }
+      ],
+      "findings_count": 9,
+      "findings_by_type": {
+        "Missing": 8,
+        "Suggestion": 1
+      },
+      "findings": [
+        {
+          "Type": "Missing",
+          "Issue": "RPO and RTO not defined",
+          "Description": "The section lists compute sizing but does not declare Recovery Point Objective (RPO) or Recovery Time Objective (RTO) for the production workload, which must be defined during design review and used to guide redundancy, backup, and DR choices.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Backup strategy not specified",
+          "Description": "No backup configuration or protection mechanism is described for the instances or their data. Policy requires workloads to implement backups (e.g., vaulted backups or native platform protections) aligned with the declared RPO.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Disaster recovery pattern not defined",
+          "Description": "The section does not identify a disaster recovery architecture (e.g., active-active, active-passive, or backup-and-rebuild) aligned with workload tier and resilience requirements.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "DR testing process not documented",
+          "Description": "The design does not mention annual disaster recovery testing (tabletop or live failover) with documented outcomes feeding back into SLO or architecture review as required by policy.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Mandatory tagging model not addressed",
+          "Description": "The section does not indicate the required tag set (costCenter, owner, environment, workload, dataClassification, slaTier) or enforcement through Azure Policy for all subscriptions, resource groups, and resources.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Budget and cost alert configuration not described",
+          "Description": "Budgets with alerts at 50%, 80%, and 100% of forecast per subscription and workload are required but are not mentioned in this section.",
+          "Principles": "Reliability",
+          "Mandatory": false,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Suggestion",
+          "Issue": "Non-production shutdown automation not specified",
+          "Description": "The pre-production environment lists 'Business hours' scheduling but does not explicitly state automated shutdown outside business hours as recommended for non-production cost control.",
+          "Principles": "Reliability",
+          "Mandatory": false,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Resource naming convention not documented",
+          "Description": "The architecture section does not reference the required deterministic resource naming pattern (<resourceType>-<workload>-<environment>-<region>-<instance>) enforced by policy.",
+          "Principles": "Reliability",
+          "Mandatory": false,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Region pair or cross-region replication strategy not described",
+          "Description": "Region selection is listed but there is no mention of using Azure region pairs or a cross-region replication approach to support resilience and disaster recovery.",
+          "Principles": "Security and Governance",
+          "Mandatory": false,
+          "Category": "Security and Governance"
+        }
+      ],
+      "elapsed_s": 32.99
+    },
+    {
+      "idx": 3,
+      "chunk_chars": 832,
+      "chunk_preview": "## On-Prem Servers Sizing/Specifications   <table> <tr> <th>Environment/Location</th> <th>Server Type</th> <th>OS</th> <th>Network Zone</th> <th>CPU Cores</th> ",
+      "category": "general",
+      "vector_dim": 3072,
+      "filter_dropped_reason": "general",
+      "filtered_hits": 8,
+      "used_unfiltered_fallback": false,
+      "final_hits": 8,
+      "top_hits": [
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.4952,
+          "score": 0.0313,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.4952,
+          "score": 0.0304,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Reliability",
+          "rerank": 1.4952,
+          "score": 0.03,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_4"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.4591,
+          "score": 0.0156,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_0"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.4591,
+          "score": 0.0145,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_0"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.4591,
+          "score": 0.0132,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_0"
+        },
+        {
+          "header": null,
+          "category": "Storage and Data",
+          "rerank": 1.4321,
+          "score": 0.0161,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_1"
+        },
+        {
+          "header": null,
+          "category": "Storage and Data",
+          "rerank": 1.4321,
+          "score": 0.0159,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_1"
+        }
+      ],
+      "findings_count": 5,
+      "findings_by_type": {
+        "Missing": 4,
+        "Violation": 1
+      },
+      "findings": [
+        {
+          "Type": "Missing",
+          "Issue": "RPO and RTO not defined for workload",
+          "Description": "The section lists server specifications but does not declare Recovery Point Objective (RPO) and Recovery Time Objective (RTO). Policy requires every production workload to declare RPO and RTO during design review so redundancy, backup frequency, and DR patterns can be determined.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Disaster recovery strategy not documented",
+          "Description": "The section does not describe a disaster recovery pattern (for example active-active, active-passive, or backup-and-rebuild) or how these on-prem servers participate in DR planning. Policy requires workloads to define a DR pattern and test the DR plan annually.",
+          "Principles": "Reliability",
+          "Mandatory": true,
+          "Category": "Reliability"
+        },
+        {
+          "Type": "Violation",
+          "Issue": "Encryption at rest requirements for confidential data not specified",
+          "Description": "Servers are marked as handling 'Confidential' data, but the section does not specify encryption at rest or customer-managed key usage. Policy mandates encryption at rest for all storage services and requires customer-managed keys in Azure Key Vault Premium with HSM-backed keys for confidential data tiers.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Encryption in transit requirements not addressed",
+          "Description": "The design does not specify transport security controls for data exchanged with these servers. Policy requires TLS 1.2 or higher with modern cipher suites for encryption in transit.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Secrets management approach not documented",
+          "Description": "The section does not describe how secrets such as connection strings, API keys, or certificates used by these servers are stored and retrieved. Policy requires secrets to be stored exclusively in Azure Key Vault and referenced securely rather than embedded in configuration.",
+          "Principles": "Storage and Data",
+          "Mandatory": true,
+          "Category": "Storage and Data"
+        }
+      ],
+      "elapsed_s": 29.59
+    },
+    {
+      "idx": 4,
+      "chunk_chars": 296,
+      "chunk_preview": "## Hosted Location   <table> <tr> <th>Hosted Location</th> <th>Countries/Regions Serviced</th> <th>Business Unit(s)</th> </tr> <tr> <td>AWS us-east-1 (primary),",
+      "category": "general",
+      "vector_dim": 3072,
+      "filter_dropped_reason": "general",
+      "filtered_hits": 8,
+      "used_unfiltered_fallback": false,
+      "final_hits": 8,
+      "top_hits": [
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.4009,
+          "score": 0.0164,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_0"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.4009,
+          "score": 0.0161,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_0"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.4009,
+          "score": 0.0147,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_0"
+        },
+        {
+          "header": null,
+          "category": "AI Workloads",
+          "rerank": 1.2393,
+          "score": 0.0149,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_6"
+        },
+        {
+          "header": null,
+          "category": "AI Workloads",
+          "rerank": 1.2393,
+          "score": 0.0133,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_6"
+        },
+        {
+          "header": null,
+          "category": "AI Workloads",
+          "rerank": 1.2393,
+          "score": 0.0128,
+          "id": "cc3a052bfd06_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtYTliMjhhLWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_6"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.2131,
+          "score": 0.0316,
+          "id": "82006ec2f4c9_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS9henVyZV9wb2xpY2llcy5kb2N40_pages_5"
+        },
+        {
+          "header": null,
+          "category": "Security and Governance",
+          "rerank": 1.2131,
+          "score": 0.0308,
+          "id": "ec43004c8754_aHR0cHM6Ly9hcmJwb2xpY2llczc5NTI3ZC5ibG9iLmNvcmUud2luZG93cy5uZXQvYXJiLXBvbGljaWVzLXNvdXJjZS90ZXN0LXB1bGwtZWQyNDM4LWF6dXJlX3BvbGljaWVzLmRvY3g1_pages_5"
+        }
+      ],
+      "findings_count": 3,
+      "findings_by_type": {
+        "Violation": 1,
+        "Deviation": 1,
+        "Missing": 1
+      },
+      "findings": [
+        {
+          "Type": "Violation",
+          "Issue": "Non-Azure hosting regions specified",
+          "Description": "The hosted location lists AWS regions (us-east-1 and us-west-2). The policy specifies Azure-based deployments and requires use of Azure regions and Azure region pairs for cross-region replication. Using AWS regions does not comply with the stated Azure deployment requirement.",
+          "Principles": "Security and Governance",
+          "Mandatory": true,
+          "Category": "Security and Governance"
+        },
+        {
+          "Type": "Deviation",
+          "Issue": "Disaster recovery not aligned to Azure region pairs",
+          "Description": "The DR strategy references AWS regions rather than Azure region pairs. The policy states that deployments should use Azure region pairs for cross-region replication to support resiliency and governance alignment.",
+          "Principles": "Security and Governance",
+          "Mandatory": true,
+          "Category": "Security and Governance"
+        },
+        {
+          "Type": "Missing",
+          "Issue": "Region selection rationale",
+          "Description": "The section lists hosting regions but does not document how region selection aligns with data residency or latency requirements, which the policy states should drive region selection decisions.",
+          "Principles": "Security and Governance",
+          "Mandatory": false,
+          "Category": "Security and Governance"
+        }
+      ],
+      "elapsed_s": 11.6
+    }
+  ]
+}
