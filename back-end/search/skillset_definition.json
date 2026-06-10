@@ -1,34 +1,36 @@
 {
   "name": "arb-policies-skillset",
-  "description": "Pull-mode pipeline for arb-policies: crack + chunk via Content Understanding, categorize each chunk via Azure OpenAI chat completion, embed via Azure OpenAI embeddings. Output is projected into the existing arb-policies index, one chunk per document.",
+  "description": "Pull-mode pipeline for arb-policies: Document Intelligence Layout skill cracks the blob AND semantically chunks it (section-aware boundaries, text output), an AOAI chat skill categorizes each chunk, an AOAI embedding skill vectorizes each chunk, and index projections emit one chunk per index document.",
   "skills": [
     {
-      "@odata.type": "#Microsoft.Skills.Util.ContentUnderstandingSkill",
-      "name": "crack-and-chunk",
-      "description": "Content Understanding — document cracking, semantic chunking, and Markdown extraction.",
+      "@odata.type": "#Microsoft.Skills.Util.DocumentIntelligenceLayoutSkill",
+      "name": "layout-and-chunk",
+      "description": "Document Intelligence layout-aware extraction + semantic chunking. outputFormat=text + chunkingProperties means `pages` is an array of objects whose `content` is layout-aware text chunked at section/paragraph boundaries (no mid-sentence cuts). chunkingProperties only works with text output (the API rejects markdown + chunkingProperties together). Billed via the cognitiveServices attachment below (foundry-cc-canada multi-service AI Services account qualifies).",
       "context": "/document",
-      "inputs": [
-        { "name": "file_data", "source": "/document/file_data" }
-      ],
-      "outputs": [
-        { "name": "chunks", "targetName": "chunks" }
-      ],
+      "outputMode": "oneToMany",
+      "outputFormat": "text",
       "chunkingProperties": {
         "unit": "characters",
         "maximumLength": 3500,
         "overlapLength": 200
-      }
+      },
+      "inputs": [
+        { "name": "file_data", "source": "/document/file_data" }
+      ],
+      "outputs": [
+        { "name": "text_sections", "targetName": "pages" }
+      ]
     },
     {
       "@odata.type": "#Microsoft.Skills.Custom.ChatCompletionSkill",
       "name": "categorize-chunk",
-      "description": "Assign each chunk a canonical PolicyCategory. Prompt is rendered from agents.categories.CATEGORIZE_SYSTEM_PROMPT; the build_indexer.py script substitutes the prompt at deploy time so the on-the-wire skillset stays byte-stable.",
-      "context": "/document/chunks/*",
+      "description": "Assign each chunk a canonical PolicyCategory. Prompt is rendered from agents.categories.CATEGORIZE_SYSTEM_PROMPT; build_indexer.py substitutes the prompt at deploy time so the on-the-wire skillset stays byte-stable.",
+      "context": "/document/pages/*",
       "uri": "{{FOUNDRY_ENDPOINT}}openai/deployments/{{FOUNDRY_MODEL_DEPLOYMENT}}/chat/completions?api-version=2024-10-21",
       "authIdentity": null,
       "inputs": [
         { "name": "systemMessage", "source": "='{{CATEGORIZE_SYSTEM_PROMPT}}'" },
-        { "name": "userMessage", "source": "/document/chunks/*/content" }
+        { "name": "userMessage", "source": "/document/pages/*/content" }
       ],
       "outputs": [
         { "name": "response", "targetName": "category_raw" }
@@ -37,14 +39,14 @@
     {
       "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
       "name": "embed-chunk",
-      "description": "Vectorize each chunk via the Foundry embeddings deployment. text-embedding-3-large is native 3072 dims — the index schema's contentVector field is 3072 to match. We deliberately do NOT pass `dimensions` here: the skill's `dimensions` field is a projection hint that the underlying deployment may silently ignore, leaving us with 3072-dim vectors flowing into a 1536 field (silent index-projection failure, empty index). Letting the model emit its native 3072 keeps the contract honest end-to-end.",
-      "context": "/document/chunks/*",
+      "description": "Vectorize each chunk via the Foundry embeddings deployment. text-embedding-3-large is native 3072 dims.",
+      "context": "/document/pages/*",
       "resourceUri": "{{FOUNDRY_ENDPOINT}}",
       "deploymentId": "{{FOUNDRY_EMBEDDINGS_DEPLOYMENT}}",
       "modelName": "text-embedding-3-large",
       "authIdentity": null,
       "inputs": [
-        { "name": "text", "source": "/document/chunks/*/content" }
+        { "name": "text", "source": "/document/pages/*/content" }
       ],
       "outputs": [
         { "name": "embedding", "targetName": "contentVector" }
@@ -56,13 +58,11 @@
       {
         "targetIndexName": "{{AZURE_SEARCH_INDEX}}",
         "parentKeyFieldName": "source_doc_key",
-        "sourceContext": "/document/chunks/*",
+        "sourceContext": "/document/pages/*",
         "mappings": [
-          { "name": "header",        "source": "/document/chunks/*/header" },
-          { "name": "content",       "source": "/document/chunks/*/content" },
-          { "name": "category",      "source": "/document/chunks/*/category_raw" },
-          { "name": "contentVector", "source": "/document/chunks/*/contentVector" },
-          { "name": "chunk_index",   "source": "/document/chunks/*/ordinal" },
+          { "name": "content",       "source": "/document/pages/*/content" },
+          { "name": "category",      "source": "/document/pages/*/category_raw" },
+          { "name": "contentVector", "source": "/document/pages/*/contentVector" },
           { "name": "source_doc",    "source": "/document/metadata_storage_name" }
         ]
       }
@@ -75,6 +75,6 @@
     "@odata.type": "#Microsoft.Azure.Search.AIServicesByIdentity",
     "subdomainUrl": "{{FOUNDRY_CU_ENDPOINT}}",
     "identity": null,
-    "description": "Billing target for Content Understanding (CU) and chat-completion skills. Defaults to FOUNDRY_ENDPOINT (foundry-cc-canada). If CU is not supported in your Foundry region, set FOUNDRY_CU_ENDPOINT to an AI Services account in a CU-supported region (Sweden Central, East US 2, West US 3)."
+    "description": "Billing target for the Document Intelligence layout skill + the chat-completion skill. Defaults to FOUNDRY_ENDPOINT (foundry-cc-canada multi-service AI Services account)."
   }
 }
