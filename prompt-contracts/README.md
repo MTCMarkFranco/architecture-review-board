@@ -27,6 +27,8 @@ Each contract is one Markdown file named after the work item (UPPER-KEBAB-CASE) 
 | [`CATEGORIZER-FIX.md`](CATEGORIZER-FIX.md) | #71 | `branch-categorizer-fix-1` |
 | [`MISSING-DEDUP.md`](MISSING-DEDUP.md) | #73 | `branch-missing-dedup-1` |
 | [`MISSING-VERIFY.md`](MISSING-VERIFY.md) | #77 | `branch-missing-verify-1` |
+| [`MCP-SERVER-ENTRA.md`](MCP-SERVER-ENTRA.md) | #90 | `branch-mcp-server-entra-1` |
+| [`MCP-SHAREPOINT-OBO.md`](MCP-SHAREPOINT-OBO.md) | #91 | `branch-mcp-sharepoint-obo-1` |
 
 ## Branching choice
 
