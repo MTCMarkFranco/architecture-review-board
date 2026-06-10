@@ -62,24 +62,30 @@ This is the v2 of the dedupe story. v1 (#73, #74) collapsed N duplicates into on
 
 - Removes a trailing `"(also missing in N other chunk[s])"` token (regex `\s*\(also missing in \d+ other chunks?\)\s*$`) from the string and re-strips trailing whitespace. Idempotent; no-op if absent.
 
-`_VERIFY_SYSTEM_PROMPT` (frozen for byte-stability):
+`_VERIFY_SYSTEM_PROMPT` (frozen for byte-stability; see iteration history below):
 
 ```
-You are an Azure architecture-review verifier. The user will give you a POLICY
-PRINCIPLE name and the full text of an Architecture Design Document (ASD).
-Your job is to decide whether the document, anywhere in its body, addresses
-that principle — even briefly, even imperfectly. Boilerplate mentions in a
-table of contents, glossary, or sign-off block do NOT count as addressing
-the principle.
+You are an Azure architecture-review verifier. The user will give you a
+POLICY PRINCIPLE name and the full text of an Architecture Design
+Document (ASD). Your job is to decide whether the document SUBSTANTIVELY
+addresses that principle anywhere in its body.
 
-Return ONLY a single JSON object on one line, no prose, no code fence:
-{"present": true, "quote": "<one short verbatim phrase from the document>"}
-or
-{"present": false, "quote": ""}
+SUBSTANTIVELY means the document either:
+  (a) commits to a concrete value, target, mechanism, or named Azure
+      service for the principle, OR
+  (b) explicitly defers to a named external policy or standard that
+      covers the principle.
 
-If the document mentions the principle by name but does not state any
-substantive content about it, set present=false.
+The following do NOT clear the bar — return present=false for them:
+  - Passing mentions or buzzword references without a value or mechanism.
+  - Table-of-contents entries, headings, glossary terms, sign-off blocks.
+  - References to OTHER cloud providers' equivalent services.
+  - Generic statements like "we will follow best practices".
+
+WHEN IN DOUBT, return present=false.
 ```
+
+**Iteration history.** The v1 prompt asked the model to mark a principle present "even briefly, even imperfectly." First live run on `sdd-abc-sample.pdf` dropped all 6 Missing findings — 2 correctly (they reappeared as Deviations), 4 incorrectly. Issue #79 tightened the bar to require substantive coverage and an explicit "when in doubt, false" default. The shape of the response is unchanged.
 
 User message template:
 
