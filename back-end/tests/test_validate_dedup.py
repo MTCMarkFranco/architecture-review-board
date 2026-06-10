@@ -205,6 +205,9 @@ def test_validate_arb_chunks_applies_dedupe(monkeypatch):
     monkeypatch.setitem(sys.modules, "agents.asd_chunker", fake_mod)
 
     cfg = Config()
+    # Isolate this test from the verify pass that ships in #77 — we are only
+    # asserting dedupe behavior here.
+    cfg.missing_verify_enabled = False
     out = asyncio.run(
         va.validate_arb_chunks(b"bytes", "f.pdf", cfg, client=object())
     )

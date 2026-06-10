@@ -75,6 +75,13 @@ class Config:
     log_level: str = field(
         default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")
     )
+    missing_verify_enabled: bool = field(
+        default_factory=lambda: os.getenv("MISSING_VERIFY_ENABLED", "true")
+        .strip().lower() in {"1", "true", "yes", "on"}
+    )
+    missing_verify_max: int = field(
+        default_factory=lambda: int(os.getenv("MISSING_VERIFY_MAX", "10"))
+    )
 
     def require_runtime(self) -> None:
         """Validate the fields needed to talk to Foundry."""

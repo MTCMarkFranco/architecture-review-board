@@ -26,6 +26,7 @@ Each contract is one Markdown file named after the work item (UPPER-KEBAB-CASE) 
 | [`TEST-ASD.md`](TEST-ASD.md) | #19 | `branch-test-asd-1` |
 | [`CATEGORIZER-FIX.md`](CATEGORIZER-FIX.md) | #71 | `branch-categorizer-fix-1` |
 | [`MISSING-DEDUP.md`](MISSING-DEDUP.md) | #73 | `branch-missing-dedup-1` |
+| [`MISSING-VERIFY.md`](MISSING-VERIFY.md) | #77 | `branch-missing-verify-1` |
 
 ## Branching choice
 
