@@ -337,3 +337,176 @@ async def validate_arb_sections(
             continue
         findings.extend(_parse_findings(r))
     return findings
+
+
+# ---------------------------------------------------------------------------
+# Chunk-based validation path (issue #65)
+# ---------------------------------------------------------------------------
+#
+# validate_arb_chunks is the modern entry point. Differences from
+# validate_arb_sections:
+#
+#   * Input is the raw uploaded file bytes (PDF / DOCX), not a parsed dict.
+#   * Chunking is semantic (Document Intelligence Layout) — works on any
+#     customer doc, not just our reference ASD section names.
+#   * Each chunk's category is decided by AOAI at validate time (same
+#     CATEGORIZE_SYSTEM_PROMPT as the policy ingest skillset), so the search
+#     filter is per-chunk and self-consistent with the index labels.
+#   * Retrieval is hybrid (BM25 + vector) + semantic-ranker + category-filter
+#     — the chunk's embedding is passed as ``vector`` to search_policies.
+#
+# Fan-out is per chunk (was: per section × category pair). Findings are
+# aggregated identically.
+
+
+async def validate_arb_chunks(
+    file_bytes: bytes,
+    filename: str | None = None,
+    config: Config | None = None,
+    client: Any | None = None,
+) -> list[dict]:
+    """Semantic-chunked validate of an uploaded ASD/ARB document.
+
+    See module-level note above for the design. Returns the same shape of
+    findings list as :func:`validate_arb_sections` so callers (and the
+    front-end) are agnostic to which path produced them.
+    """
+    from .asd_chunker import chunk_asd_document
+    from .categorize_chunk import categorize_chunk
+    from .embeddings import embed_text
+
+    cfg = config or Config()
+    cli = client or build_project_client(cfg)
+
+    # Step 1 — semantic chunking. A DocIntel failure becomes a single
+    # deterministic Error finding so the user sees the cause instead of an
+    # empty results table.
+    try:
+        chunks = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: chunk_asd_document(file_bytes, filename)
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("ASD chunking failed: %s", e)
+        return [{
+            "Type": "Error",
+            "Issue": "chunking_failed",
+            "Description": f"Could not crack ASD document via Document "
+                           f"Intelligence: {e}",
+            "Principles": "",
+            "Mandatory": False,
+            "Category": "",
+        }]
+    if not chunks:
+        logger.info("ASD chunker returned 0 chunks; nothing to validate.")
+        return []
+    logger.info("ASD chunker produced %d chunks", len(chunks))
+
+    # Step 2 — per-chunk retrieve + agent call. Each step that involves an
+    # Azure call runs in the executor so the asyncio fan-out is not blocked.
+    findings_from_failures: list[dict[str, Any]] = []
+    tasks: list[asyncio.Task] = []
+
+    for idx, chunk in enumerate(chunks):
+        tasks.append(asyncio.create_task(
+            _validate_single_chunk(cli, cfg, idx, chunk, findings_from_failures)
+        ))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    findings: list[dict] = list(findings_from_failures)
+    for r in results:
+        if isinstance(r, Exception):
+            logger.warning("chunk validate task failed: %s", r)
+            findings.append({
+                "Type": "Error",
+                "Issue": "agent_call_failed",
+                "Description": str(r),
+                "Principles": "",
+                "Mandatory": False,
+                "Category": "",
+            })
+            continue
+        if r:
+            findings.extend(r)
+    return findings
+
+
+async def _validate_single_chunk(
+    cli: Any,
+    cfg: Config,
+    chunk_idx: int,
+    chunk_text: str,
+    failures_sink: list[dict[str, Any]],
+) -> list[dict]:
+    """Categorize → embed → retrieve → call agent for one chunk."""
+    from .categorize_chunk import categorize_chunk
+    from .embeddings import embed_text
+
+    loop = asyncio.get_running_loop()
+
+    # 2a — categorize (AOAI) and embed (AOAI) in parallel; both are I/O bound.
+    try:
+        category_enum, vector = await asyncio.gather(
+            loop.run_in_executor(None, categorize_chunk, chunk_text),
+            loop.run_in_executor(None, embed_text, chunk_text),
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("categorize/embed failed for chunk %d: %s", chunk_idx, e)
+        failures_sink.append({
+            "Type": "Error",
+            "Issue": "chunk_preprocess_failed",
+            "Description": f"Chunk #{chunk_idx}: {e}",
+            "Principles": "",
+            "Mandatory": False,
+            "Category": "",
+        })
+        return []
+    category = category_enum.value
+    logger.debug("chunk %d -> category=%s (vector dim=%d)",
+                 chunk_idx, category, len(vector))
+
+    # 2b — filtered hybrid + semantic-ranked retrieval.
+    try:
+        hits = await loop.run_in_executor(
+            None,
+            lambda: _retrieve_for_chunk(chunk_text, category, vector),
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("search failed for chunk %d category=%s: %s",
+                       chunk_idx, category, e)
+        failures_sink.append(
+            _build_search_failed_finding(f"chunk-{chunk_idx}", category, e)
+        )
+        return []
+
+    # 2c — render prompt, call the validate agent.
+    policies_block = _format_retrieved_policies(hits)
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"[Chunk Index]\n{chunk_idx}\n\n"
+        f"[Policy Category Filter]\n{category}\n\n"
+        f"[Retrieved Policies]\n{policies_block}\n\n"
+        f"[Section Content]\n{chunk_text}\n"
+    )
+    raw = await _call_agent(cli, cfg.validate_agent_name, prompt, cfg)
+    return _parse_findings(raw)
+
+
+def _retrieve_for_chunk(
+    chunk_text: str, category: str, vector: list[float],
+    top_k: int = _DEFAULT_TOP_K,
+) -> list[dict[str, Any]]:
+    """Filtered hybrid + semantic-ranked retrieval for a single chunk.
+
+    Passes the chunk's embedding as ``vector`` so ``search_policies`` issues
+    a true hybrid query (BM25 + ANN) under the semantic ranker, with the
+    AOAI-assigned category as a hard filter on the search index.
+    """
+    from search.query import search_policies
+
+    query = chunk_text[:_SEARCH_QUERY_CHARS] if chunk_text else ""
+    return search_policies(
+        query=query,
+        category=category,
+        top=top_k,
+        vector=vector,
+    )
