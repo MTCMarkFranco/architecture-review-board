@@ -427,7 +427,80 @@ async def validate_arb_chunks(
             continue
         if r:
             findings.extend(r)
-    return findings
+    return dedupe_missing_findings(findings)
+
+
+def _missing_key(f: dict[str, Any]) -> str | None:
+    """Dedupe key for a ``Missing``-type finding, or ``None`` if not mergeable.
+
+    Empty/whitespace ``Principles`` returns ``None`` so genuinely
+    un-attributed gaps remain as separate findings instead of being merged
+    into a single ambiguous bucket. See ``prompt-contracts/MISSING-DEDUP.md``
+    edge case #2.
+    """
+    principles = (f.get("Principles") or "").strip().lower()
+    return principles or None
+
+
+def dedupe_missing_findings(findings: list[dict]) -> list[dict]:
+    """Collapse repeated ``Missing`` findings that share the same Principle.
+
+    Per ``prompt-contracts/MISSING-DEDUP.md``:
+
+    * Only ``Type == "Missing"`` findings are deduped — other types pass
+      through unchanged because they describe chunk-specific content.
+    * Dedupe key is the normalized ``Principles`` value (strip + lowercase).
+      Empty/missing ``Principles`` is treated as a unique key (never merged).
+    * The first occurrence wins. Conflicts on ``Mandatory``/``Category``
+      are resolved in favor of the first finding (logged at DEBUG).
+    * When duplicates are collapsed, the survivor's ``Description`` is
+      augmented with ``" (also missing in N other chunk[s])"``.
+
+    Does not mutate the input list.
+    """
+    if not findings:
+        return []
+
+    output: list[dict] = []
+    index_by_key: dict[str, int] = {}
+    dup_counts: dict[int, int] = {}
+
+    for f in findings:
+        if not isinstance(f, dict) or f.get("Type") != "Missing":
+            output.append(f)
+            continue
+
+        key = _missing_key(f)
+        if key is None:
+            output.append(dict(f))
+            continue
+
+        if key not in index_by_key:
+            output.append(dict(f))
+            index_by_key[key] = len(output) - 1
+            continue
+
+        survivor_idx = index_by_key[key]
+        survivor = output[survivor_idx]
+        dup_counts[survivor_idx] = dup_counts.get(survivor_idx, 0) + 1
+        if survivor.get("Mandatory") != f.get("Mandatory"):
+            logger.debug(
+                "dedupe_missing: Mandatory mismatch for principle=%s (kept %s, dropped %s)",
+                key, survivor.get("Mandatory"), f.get("Mandatory"),
+            )
+        if survivor.get("Category") != f.get("Category"):
+            logger.debug(
+                "dedupe_missing: Category mismatch for principle=%s (kept %s, dropped %s)",
+                key, survivor.get("Category"), f.get("Category"),
+            )
+
+    for idx, n in dup_counts.items():
+        survivor = output[idx]
+        original_desc = str(survivor.get("Description") or "")
+        suffix = f" (also missing in {n} other chunk{'s' if n != 1 else ''})"
+        survivor["Description"] = original_desc + suffix
+
+    return output
 
 
 async def _validate_single_chunk(
