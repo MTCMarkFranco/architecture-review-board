@@ -181,14 +181,14 @@ class EntraAuthMiddleware:
                 token,
                 signing_key.key,
                 algorithms=["RS256", "RS384", "RS512"],
-                audience=cfg.effective_audience,
+                audience=list(cfg.accepted_audiences),
                 issuer=list(cfg.accepted_issuers),
                 options={"require": ["exp", "iss", "aud"]},
             )
         except jwt.ExpiredSignatureError:
             raise _AuthError("invalid_token", "Token expired", 401)
         except jwt.InvalidAudienceError:
-            logger.warning("Token audience mismatch (expected=%s)", cfg.effective_audience)
+            logger.warning("Token audience mismatch (expected one of=%s)", cfg.accepted_audiences)
             raise _AuthError("invalid_token", "Wrong audience", 401)
         except jwt.InvalidIssuerError:
             logger.warning("Token issuer mismatch (expected=%s)", cfg.issuer)

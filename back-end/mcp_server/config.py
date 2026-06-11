@@ -66,6 +66,25 @@ class McpConfig:
     def effective_audience(self) -> str:
         return self.api_audience or (f"api://{self.api_client_id}" if self.api_client_id else "")
 
+    @property
+    def accepted_audiences(self) -> tuple[str, ...]:
+        """Accepted ``aud`` claim values.
+
+        Entra issues v1 tokens with ``aud=api://<clientId>`` and v2 tokens
+        (``requestedAccessTokenVersion=2``) with ``aud=<clientId>``. Accept
+        both so callers using either token version work without churn.
+        """
+        auds: list[str] = []
+        if self.api_audience:
+            auds.append(self.api_audience)
+        if self.api_client_id:
+            api_form = f"api://{self.api_client_id}"
+            if api_form not in auds:
+                auds.append(api_form)
+            if self.api_client_id not in auds:
+                auds.append(self.api_client_id)
+        return tuple(auds)
+
     def require_runtime(self) -> None:
         missing = []
         if not self.tenant_id:
