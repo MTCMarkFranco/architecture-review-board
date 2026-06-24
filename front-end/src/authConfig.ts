@@ -43,3 +43,8 @@ export const loginRequest: PopupRequest = {
 export const apiRequest = {
   scopes: [apiScope],
 };
+
+/** Microsoft Graph scopes used to read the signed-in user's profile and photo. */
+export const graphRequest = {
+  scopes: ["User.Read"],
+};

@@ -6,6 +6,7 @@ import ValidationTable from "./components/ValidationTable";
 import IaCResults from "./components/IaCResults.tsx";
 import MicrosoftLogo from "./components/MicrosoftLogo.tsx";
 import AiSearchBadge from "./components/AiSearchBadge.tsx";
+import UserProfile from "./components/UserProfile.tsx";
 
 export default function App() {
   const [validateResult, setValidateResult] = useState<
@@ -29,21 +30,24 @@ export default function App() {
         <div className="flex items-center gap-3">
           <MicrosoftLogo className="h-7" />
           <div className="flex flex-col">
-            <span className="text-base font-semibold text-ms-text leading-tight">Foundry IQ</span>
-            <span className="text-[10px] text-ms-text-secondary leading-tight">Architecture Review Board</span>
+            <span className="text-base font-semibold text-ms-text leading-tight">Architecture Review Board</span>
+            <span className="text-[10px] text-ms-text-secondary leading-tight">MAS - Agentic Flow</span>
           </div>
         </div>
-        <AiSearchBadge />
+        <div className="flex items-center gap-4">
+          <AiSearchBadge />
+          <UserProfile />
+        </div>
       </header>
 
       {/* Hero Section */}
       <div className="w-full bg-gradient-to-r from-ms-blue to-ms-accent py-10 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-white text-3xl font-bold tracking-tight">
-            Architecture Design Validator
+            Architecture Design Validator / IaC Generator
           </h1>
           <p className="text-blue-100 text-sm mt-2 opacity-90">
-            Upload an arb document to validate against organizational policies and generate Infrastructure-as-Code
+            Upload an architecture document to validate against organizational policies and generate Infrastructure-as-Code
           </p>
         </div>
       </div>

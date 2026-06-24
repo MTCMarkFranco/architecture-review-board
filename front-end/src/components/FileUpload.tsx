@@ -7,6 +7,7 @@ import {
   faThumbsUp,
   faCircleNotch,
   faGear,
+  faSync,
 } from "@fortawesome/free-solid-svg-icons";
 
 import axios from "axios";
@@ -167,9 +168,7 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
               disabled={isValidating}
             >
               {isValidating ? (
-                <div className="animate-spin w-auto h-[1.4rem]">
-                  <FontAwesomeIcon icon={faCircleNotch} />
-                </div>
+                <FontAwesomeIcon icon={faSync} className="animate-spin" />
               ) : (
                 <div>
                   <FontAwesomeIcon icon={faThumbsUp} className="mr-2" />
@@ -184,9 +183,7 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
               disabled={isGenerating}
             >
               {isGenerating ? (
-                <div className="animate-spin w-auto h-[1.4rem]">
-                  <FontAwesomeIcon icon={faCircleNotch} />
-                </div>
+                <FontAwesomeIcon icon={faCircleNotch} className="animate-spin" />
               ) : (
                 <div>
                   <FontAwesomeIcon icon={faGear} className="mr-2" />

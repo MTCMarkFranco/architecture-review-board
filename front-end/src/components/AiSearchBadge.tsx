@@ -12,7 +12,7 @@ export default function AiSearchBadge() {
         <line x1="12" y1="12" x2="16.5" y2="16.5" stroke="url(#ai-search-grad)" strokeWidth="2" strokeLinecap="round" />
         <circle cx="7.5" cy="7.5" r="2" fill="url(#ai-search-grad)" opacity="0.5" />
       </svg>
-      <span className="text-xs font-semibold tracking-wide uppercase">Powered by Microsoft AI Search</span>
+      <span className="text-xs font-semibold tracking-wide uppercase">Powered by Microsoft Foundry IQ</span>
     </div>
   );
 }
