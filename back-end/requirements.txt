@@ -17,6 +17,7 @@ PyJWT[crypto]>=2.8.0
 # Web
 flask>=3.0.0
 flask-cors>=4.0.0
+gunicorn>=21.2.0
 
 # Document parsing
 PyMuPDF>=1.23.26

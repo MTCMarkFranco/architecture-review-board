@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+#
+# Azure Developer CLI (azd) definition for the Architecture Review Board solution.
+#
+#   azd auth login
+#   azd up            # provisions ALL infra + Entra app registrations + deploys both apps
+#
+# The pre/post-provision hooks create the two Microsoft Entra app registrations
+# (the backend API and the React SPA), wire up the API scope + redirect URIs,
+# and publish the resulting client IDs / secret / VITE_* build vars into the azd
+# environment so the Bicep deployment and the frontend build pick them up.
+name: architecture-review-board
+metadata:
+  template: architecture-review-board@1.0.0
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./infra/hooks/preprovision.ps1
+      interactive: true
+      continueOnError: false
+    posix:
+      shell: sh
+      run: ./infra/hooks/preprovision.sh
+      interactive: true
+      continueOnError: false
+  postprovision:
+    windows:
+      shell: pwsh
+      run: ./infra/hooks/postprovision.ps1
+      interactive: true
+      continueOnError: false
+    posix:
+      shell: sh
+      run: ./infra/hooks/postprovision.sh
+      interactive: true
+      continueOnError: false
+
+services:
+  backend:
+    project: ./back-end
+    language: python
+    host: appservice
+
+  frontend:
+    project: ./front-end
+    language: js
+    host: appservice
+    dist: dist

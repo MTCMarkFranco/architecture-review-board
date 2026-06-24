@@ -1,0 +1,11 @@
+{
+  "cognitiveServicesAccounts": "aif-",
+  "insightsComponents": "appi-",
+  "keyVaultVaults": "kv-",
+  "operationalInsightsWorkspaces": "log-",
+  "resourcesResourceGroups": "rg-",
+  "searchSearchServices": "srch-",
+  "storageStorageAccounts": "st",
+  "webServerFarms": "plan-",
+  "webSitesAppService": "app-"
+}
