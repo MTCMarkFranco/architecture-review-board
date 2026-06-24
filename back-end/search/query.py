@@ -30,6 +30,11 @@ def _running_in_azure_host() -> bool:
 
 
 def _get_credential() -> DefaultAzureCredential:
+    from agents import auth
+
+    obo = auth.current_credential()
+    if obo is not None:
+        return obo
     global _CREDENTIAL
     if _CREDENTIAL is not None:
         return _CREDENTIAL
@@ -44,7 +49,10 @@ def _get_credential() -> DefaultAzureCredential:
 
 
 def _get_client(endpoint: str, index: str):
-    key = (endpoint, index)
+    cred = _get_credential()
+    from agents.auth import credential_cache_id
+
+    key = (endpoint, index, credential_cache_id(cred))
     cached = _CLIENTS.get(key)
     if cached is not None:
         return cached
@@ -57,7 +65,7 @@ def _get_client(endpoint: str, index: str):
         client = SearchClient(
             endpoint=endpoint,
             index_name=index,
-            credential=_get_credential(),
+            credential=cred,
         )
         _CLIENTS[key] = client
         return client

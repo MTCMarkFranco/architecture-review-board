@@ -18,6 +18,7 @@ from agents.errors import (
     WorkflowTimeoutError,
 )
 from agents.orchestrator import ArbWorkflow
+from agents import auth
 from file_processing.parsing import parse_arb
 
 # Load environment variables from a .env file at the repository root (one
@@ -73,6 +74,41 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def _authenticate(req) -> str | None:
+    """Validate the incoming Entra bearer token and return the raw assertion.
+
+    Returns ``None`` (auth disabled / pass-through) only when OBO is not
+    configured, preserving the local CLI-credential dev flow. When OBO is
+    configured a missing/invalid token raises ``AuthError``/``ScopeError``.
+    """
+    if not auth.obo_enabled():
+        return None
+    header = req.headers.get("Authorization", "")
+    if not header.lower().startswith("bearer "):
+        raise auth.AuthError("missing bearer token")
+    token = header.split(" ", 1)[1].strip()
+    auth.validate_bearer_token(token)  # raises on failure
+    return token
+
+
+@app.errorhandler(auth.AuthError)
+def _handle_auth(e):
+    resp = jsonify({"error": "unauthorized", "error_code": "unauthorized",
+                    "message": str(e)})
+    resp.status_code = 401
+    resp.headers["WWW-Authenticate"] = 'Bearer error="invalid_token"'
+    return resp
+
+
+@app.errorhandler(auth.ScopeError)
+def _handle_scope(e):
+    resp = jsonify({"error": "forbidden", "error_code": "insufficient_scope",
+                    "message": str(e)})
+    resp.status_code = 403
+    resp.headers["WWW-Authenticate"] = 'Bearer error="insufficient_scope"'
+    return resp
+
+
 @app.errorhandler(ConfigError)
 def _handle_config(e):
     return jsonify({"error": "config", "error_code": "config",
@@ -103,6 +139,7 @@ def _handle_workflow(e):
 
 @app.route("/validatearb", methods=["POST"])
 def validate():
+    assertion = _authenticate(request)
     if "file" not in request.files:
         return jsonify({"error": "no_file"}), 400
     f = request.files["file"]
@@ -114,12 +151,17 @@ def validate():
                         "message": f"Unsupported file extension: {name!r}; "
                                    f"expected .pdf or .docx"}), 400
     file_bytes = f.read()
-    findings = _run(_get_workflow().validate_bytes(file_bytes, f.filename))
+    auth.set_current_assertion(assertion)
+    try:
+        findings = _run(_get_workflow().validate_bytes(file_bytes, f.filename))
+    finally:
+        auth.clear_current_assertion()
     return jsonify(findings)
 
 
 @app.route("/geniac", methods=["POST"])
 def geniac():
+    assertion = _authenticate(request)
     if "file" not in request.files:
         return jsonify({"error": "no_file"}), 400
     f = request.files["file"]
@@ -131,7 +173,11 @@ def geniac():
                         "message": f"Unsupported file extension: {name!r}; "
                                    f"expected .pdf or .docx"}), 400
     file_bytes = f.read()
-    scripts = _run(_get_workflow().iac_bytes(file_bytes, f.filename))
+    auth.set_current_assertion(assertion)
+    try:
+        scripts = _run(_get_workflow().iac_bytes(file_bytes, f.filename))
+    finally:
+        auth.clear_current_assertion()
     return jsonify(scripts)
 
 

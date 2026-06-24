@@ -10,6 +10,10 @@ azure-search-documents>=11.5.0
 azure-storage-blob>=12.19.0
 requests>=2.31.0
 
+# Entra ID auth: bearer-token validation + On-Behalf-Of (OBO)
+msal>=1.28.0
+PyJWT[crypto]>=2.8.0
+
 # Web
 flask>=3.0.0
 flask-cors>=4.0.0

@@ -89,8 +89,21 @@ def _running_in_azure_host() -> bool:
     )
 
 
-def _build_credential() -> DefaultAzureCredential:
-    """Prefer Azure CLI locally; only probe managed identity in Azure hosts."""
+def _build_credential():
+    """Pick the credential for downstream Azure calls.
+
+    Priority:
+    1. **OBO** — when an authenticated user assertion is in scope (set by the
+       Flask layer) and Entra OBO is configured, run downstream calls in the
+       signed-in user's context.
+    2. **Azure CLI** locally (developer login).
+    3. **DefaultAzureCredential** in Azure-hosted runtimes (managed identity).
+    """
+    from . import auth
+
+    obo = auth.current_credential()
+    if obo is not None:
+        return obo
     if not _running_in_azure_host():
         tenant_id = os.getenv("AZURE_TENANT_ID") or None
         return AzureCliCredential(tenant_id=tenant_id)

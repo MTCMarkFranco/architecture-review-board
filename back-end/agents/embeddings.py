@@ -35,23 +35,35 @@ _CLIENT_LOCK = threading.Lock()
 
 
 def _get_aoai_client(endpoint: str) -> Any:
-    """Lazy + cached AzureOpenAI client. Thread-safe."""
-    cached = _CLIENT_CACHE.get(endpoint)
+    """Lazy + cached AzureOpenAI client. Thread-safe.
+
+    Uses a token *provider* (not a baked token) so OBO/user tokens refresh
+    automatically, and keys the cache by credential identity so per-user
+    (OBO) clients do not collide.
+    """
+    from .auth import credential_cache_id
+
+    cred = _build_credential()
+    cache_key = f"{endpoint}::{credential_cache_id(cred)}"
+    cached = _CLIENT_CACHE.get(cache_key)
     if cached is not None:
         return cached
     with _CLIENT_LOCK:
-        cached = _CLIENT_CACHE.get(endpoint)
+        cached = _CLIENT_CACHE.get(cache_key)
         if cached is not None:
             return cached
-        token = _build_credential().get_token(
-            "https://cognitiveservices.azure.com/.default"
-        ).token
+
+        def _token_provider() -> str:
+            return _build_credential().get_token(
+                "https://cognitiveservices.azure.com/.default"
+            ).token
+
         client = AzureOpenAI(
             azure_endpoint=endpoint,
             api_version="2024-10-21",
-            azure_ad_token=token,
+            azure_ad_token_provider=_token_provider,
         )
-        _CLIENT_CACHE[endpoint] = client
+        _CLIENT_CACHE[cache_key] = client
         return client
 
 

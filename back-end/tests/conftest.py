@@ -31,6 +31,22 @@ def require_env(*names: str) -> None:
         pytest.skip(f"Required env var(s) not set: {', '.join(missing)}")
 
 
+@pytest.fixture(autouse=True)
+def _disable_entra_auth(monkeypatch):
+    """Disable Entra OBO bearer-token enforcement for the test suite.
+
+    The repo ``.env`` now configures Entra OBO, which would otherwise make the
+    Flask routes reject the offline/live tests (no SPA token). Tests targeting
+    the auth layer itself can re-enable it by monkeypatching
+    ``agents.auth.obo_enabled`` back to ``True`` inside the test.
+    """
+    try:
+        from agents import auth
+    except Exception:  # pragma: no cover - auth deps not installed
+        return
+    monkeypatch.setattr(auth, "obo_enabled", lambda: False, raising=True)
+
+
 @pytest.fixture(scope="session")
 def backend_root() -> Path:
     return BACKEND_ROOT

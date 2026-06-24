@@ -10,6 +10,12 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import axios from "axios";
+import { useMsal } from "@azure/msal-react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { apiRequest } from "../authConfig.ts";
+
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string) || "http://127.0.0.1:5000";
 
 export interface FileUploadProps {
   setValidateResult: (response: ValidationEntry[]) => void;
@@ -18,9 +24,25 @@ export interface FileUploadProps {
 }
 
 export default function FileUpload({ setValidateResult, setIaCResult, setNewestResult }: FileUploadProps) {
+  const { instance } = useMsal();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Acquire a backend-API access token silently; fall back to an interactive
+  // redirect if the session needs re-consent or has expired.
+  const getAccessToken = async (): Promise<string> => {
+    const account = instance.getActiveAccount() ?? instance.getAllAccounts()[0];
+    try {
+      const result = await instance.acquireTokenSilent({ ...apiRequest, account });
+      return result.accessToken;
+    } catch (error) {
+      if (error instanceof InteractionRequiredAuthError) {
+        await instance.acquireTokenRedirect(apiRequest);
+      }
+      throw error;
+    }
+  };
 
   const handleFileValidate = async () => {
     if (!selectedFile) {
@@ -33,12 +55,22 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
     const formData = new FormData();
     formData.append("file", selectedFile, selectedFile.name);
 
-    const apiUrl = "http://127.0.0.1:5000/validatearb";
+    const apiUrl = `${API_BASE_URL}/validatearb`;
+
+    let token: string;
+    try {
+      token = await getAccessToken();
+    } catch (error) {
+      console.error("Failed to acquire access token", error);
+      setIsValidating(false);
+      return;
+    }
 
     await axios
       .post(apiUrl, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`,
         },
       })
       .then((response) => {
@@ -65,12 +97,22 @@ export default function FileUpload({ setValidateResult, setIaCResult, setNewestR
     const formData = new FormData();
     formData.append("file", selectedFile, selectedFile.name);
 
-    const apiUrl = "http://127.0.0.1:5000/geniac";
+    const apiUrl = `${API_BASE_URL}/geniac`;
+
+    let token: string;
+    try {
+      token = await getAccessToken();
+    } catch (error) {
+      console.error("Failed to acquire access token", error);
+      setIsGenerating(false);
+      return;
+    }
 
     await axios
       .post(apiUrl, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`,
         },
       })
       .then((response) => {
