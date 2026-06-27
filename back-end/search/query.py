@@ -125,3 +125,30 @@ def search_policies(query: str, category: str | None = None,
             "@rerank": r.get("@search.reranker_score"),
         })
     return out
+
+
+def get_policy_by_id(policy_id: str) -> dict[str, Any] | None:
+    """Fetch a single policy document by its index key.
+
+    Returns ``None`` if the key is not found. Used by the MCP resources
+    layer (``mcp_server.resources``) to expose ``arb://policies/{id}``.
+    """
+    endpoint = os.getenv("AZURE_SEARCH_ENDPOINT", "")
+    index = os.getenv("AZURE_SEARCH_INDEX", "arb-policies")
+    if not endpoint:
+        raise RuntimeError("AZURE_SEARCH_ENDPOINT is required")
+    client = _get_client(endpoint, index)
+    try:
+        doc = client.get_document(key=policy_id)
+    except Exception as e:  # noqa: BLE001
+        msg = str(e).lower()
+        if "not found" in msg or "404" in msg:
+            return None
+        raise
+    return {
+        "id": doc.get("id") or policy_id,
+        "header": doc.get("header"),
+        "content": doc.get("content"),
+        "category": doc.get("category"),
+        "source_doc": doc.get("source_doc"),
+    }
